@@ -245,10 +245,13 @@ function renderCarteira(){
     var partesPizza=Object.keys(porClasse).map(function(c){return {rotulo:c,valor:porClasse[c],cor:CORES_CLASSE[nomeClasse[c]]||"#888"}});
     var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira")+"<table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo — mapa da carteira</h3>"+treemapSVG((function(){var cont={};return ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id);var k=a.type;cont[k]=(cont[k]||0)+1;var ops=[1,0.8,0.64,0.52];return {rotulo:a.ticker,valor:pos[id].cost,cor:CORES_CLASSE[a.type]||"#888",opacidade:ops[Math.min(3,cont[k]-1)]}})})(),360,300)+"<p class=\"peq\">Cada retângulo é um ativo, do tamanho da sua fatia na carteira; a cor é a classe (azul: ações · verde: FIIs · âmbar: ETFs · roxo: Tesouro). Os detalhes de cada um estão na tabela Posição por ativo, logo abaixo.</p>";
     $("cart-alocacao").innerHTML=h;
-    var linhas=ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}
+    var dadosPos=ids.map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}return {id:id,ticker:a.ticker,a:a,p:p,q:q,merc:merc,dif:dif,valor:(merc!==null?merc:p.cost),pctCarteira:0,difPct:(dif!==null&&p.cost)?dif/p.cost*100:0,cor:CORES_CLASSE[a.type]||"#888"}});
+    var totValor=dadosPos.reduce(function(s2,d){return s2+d.valor},0);dadosPos.forEach(function(d){d.pctCarteira=totValor?d.valor/totValor*100:0});
+    dadosPos.sort(function(x,y){return y.valor-x.valor});
+    var linhas=dadosPos.map(function(d){var a=d.a,p=d.p,q=d.q,merc=d.merc,dif=d.dif,id=d.id;
       var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
       return "<tr><td>"+esc(a.ticker)+selo+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
-    $("cart-posicao").innerHTML="<table><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Custo</th><th>%</th><th>Proventos</th><th>Mercado</th><th>Dif.</th></tr>"+linhas.join("")+"</table>";
+    $("cart-posicao").innerHTML=barrasPosicao(dadosPos)+'<p class="peq">Barras pelo valor de mercado (quando há cotação) ou pelo custo; a cor é a classe do ativo e o % ao lado da barra é a fatia na carteira. A tabela traz os números exatos.</p>'+"<table><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Custo</th><th>%</th><th>Proventos</th><th>Mercado</th><th>Dif.</th></tr>"+linhas.join("")+"</table>";
   }
   /* cotações */
   var qids=Object.keys(state.quotes);
@@ -417,6 +420,20 @@ function treemapSVG(itens,W,H){
     }
   });
   return svg+"</svg>";
+}
+
+/* Barras horizontais da Posição: valor (mercado se houver cotação; senão custo) + diferença % */
+function barrasPosicao(dados){
+  var max=0;dados.forEach(function(d){if(d.valor>max)max=d.valor});
+  if(!(max>0))return "";
+  function curto(t){return t.replace(/^Tesouro /,"").replace("Prefixado","Pref.")}
+  var h='<div style="margin-bottom:8px">';
+  dados.forEach(function(d){
+    var w=Math.max(1.5,d.valor/max*100);
+    var dif=d.dif===null?"":'<span class="'+(d.dif>=0?"pos":"neg")+'" style="display:inline-block;min-width:52px;text-align:right">'+(d.dif>=0?"+":"")+pct(d.difPct)+"</span>";
+    h+='<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><div style="width:92px;font-weight:600;font-size:11.5px;white-space:nowrap;overflow:hidden">'+esc(curto(d.ticker))+'</div><div style="flex:1;background:#e8ece9;border-radius:5px;height:14px"><div style="width:'+w.toFixed(1)+'%;background:'+d.cor+';height:14px;border-radius:5px"></div></div><div style="min-width:118px;text-align:right;font-size:12px">'+pct(d.pctCarteira)+" · "+fmt(d.valor)+'</div><div style="min-width:52px;text-align:right;font-size:12px">'+dif+"</div></div>";
+  });
+  return h+"</div>";
 }
 /* ===== Rebalanceamento por aportes ===== */
 var REB_PADRAO={aporte:500,alvos:{acao:25,fii:30,etf:20,tesouro:25}};
