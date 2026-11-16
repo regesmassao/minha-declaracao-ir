@@ -179,7 +179,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 10 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 10.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -541,7 +541,7 @@ function barrasPosicao(dados){
 var SECOES_KEY="mdi-secoes";
 function secoesSalvas(){try{return JSON.parse(localStorage.getItem(SECOES_KEY)||"{}")}catch(e){return {}}}
 function initAcordeon(){
-  var def={alocacao:true,posicao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
+  var def={alocacao:false,posicao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
   var salvo=secoesSalvas();
   document.querySelectorAll('#tab-carteira h2[data-ac]').forEach(function(h){
     var k=h.getAttribute("data-ac");var corpo=h.nextElementSibling;if(!corpo)return;
