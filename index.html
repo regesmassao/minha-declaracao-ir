@@ -39,10 +39,41 @@ nav button{flex:1;background:none;color:#5a665e;margin:0;border-radius:0;padding
 nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
 .vazio{text-align:center;color:#5a665e;padding:22px 10px;font-size:14px;line-height:1.5}
 .pos{color:#1d7a44}.neg{color:#b3261e}.peq{font-size:12px;color:#5a665e}
+:root{--trilha:#e8ece7}
+#btn-tema{width:auto;margin:0;padding:6px 10px;background:transparent;border:1px solid rgba(255,255,255,.45);border-radius:999px;font-size:16px;line-height:1}
+html[data-tema="escuro"]{color-scheme:dark;--trilha:#262626}
+html[data-tema="escuro"] body{background:#000;color:#f5f5f5}
+html[data-tema="escuro"] header{background:#000;border-bottom:2px solid #FFD60A;color:#fff}
+html[data-tema="escuro"] .aviso{background:#141414;border-bottom:1px solid #FFD60A;color:#f5f5f5}
+html[data-tema="escuro"] .card{background:#111;border-color:#2c2c2c;color:#f5f5f5}
+html[data-tema="escuro"] .resumo .v{color:#FFD60A}
+html[data-tema="escuro"] .resumo .l{color:#a8a8a8}
+html[data-tema="escuro"] h2,html[data-tema="escuro"] h3{color:#fff}
+html[data-tema="escuro"] th,html[data-tema="escuro"] td{border-bottom-color:#262626}
+html[data-tema="escuro"] th{color:#FFD60A}
+html[data-tema="escuro"] .barra{background:#262626}
+html[data-tema="escuro"] .barra i{background:#FFD60A}
+html[data-tema="escuro"] .alerta{background:#2a0f0f;border-color:#7a2d2d;color:#ffb4b4}
+html[data-tema="escuro"] form label{color:#d8d8d8}
+html[data-tema="escuro"] input,html[data-tema="escuro"] select,html[data-tema="escuro"] textarea{background:#1a1a1a;border-color:#3a3a3a;color:#fff}
+html[data-tema="escuro"] button{background:#FFD60A;color:#000;font-weight:700}
+html[data-tema="escuro"] button.sec{background:#262626;color:#FFD60A}
+html[data-tema="escuro"] button.perigo{background:#b3261e;color:#fff}
+html[data-tema="escuro"] #btn-tema{background:transparent;border-color:#FFD60A;color:#FFD60A;font-weight:400}
+html[data-tema="escuro"] .item{border-bottom-color:#262626}
+html[data-tema="escuro"] .item button{background:#262626;color:#ff9d97}
+html[data-tema="escuro"] pre{background:#141414;border-color:#2c2c2c;color:#f5f5f5}
+html[data-tema="escuro"] nav{background:#000;border-top-color:#2c2c2c}
+html[data-tema="escuro"] nav button{background:none;color:#a8a8a8;font-weight:400}
+html[data-tema="escuro"] nav button.ativa{color:#FFD60A;font-weight:700;border-top:3px solid #FFD60A}
+html[data-tema="escuro"] .vazio,html[data-tema="escuro"] .peq{color:#a8a8a8}
+html[data-tema="escuro"] .pos{color:#4ade80}
+html[data-tema="escuro"] .neg{color:#ff7a72}
 </style>
+<script>try{var _t=localStorage.getItem("mdi-tema");if(!_t)_t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"escuro":"claro";document.documentElement.dataset.tema=_t}catch(e){}</script>
 </head>
 <body>
-<header><h1>Minha Declaração de IR</h1><p>Preço médio, proventos e blocos da DIRPF — dados só neste aparelho</p></header>
+<header><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><h1>Minha Declaração de IR</h1><p>Preço médio, proventos e blocos da DIRPF — dados só neste aparelho</p></div><button id="btn-tema" type="button" aria-label="Alternar modo escuro">🌙</button></div></header>
 <div class="aviso">⚠️ Ferramenta de organização: ela <strong>não substitui</strong> o informe de rendimentos da corretora nem a revisão anual das regras e campos da Receita Federal. Você revisa, confirma e envia.</div>
 <main>
 <!-- CARTEIRA -->
@@ -137,7 +168,7 @@ nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 7.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 8 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -161,6 +192,15 @@ function seedState(){return {assets:SEED.map(function(s,i){return {id:"a"+(i+1),
 function load(){try{var r=localStorage.getItem(LS_KEY);if(r){var s=JSON.parse(r);if(s&&s.assets)return s}}catch(e){}return seedState()}
 var state=load();
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+/* Tema (claro/escuro): chave separada do estado, não entra no backup */
+var TEMA_KEY="mdi-tema";
+function temaSalvo(){try{return localStorage.getItem(TEMA_KEY)||""}catch(e){return ""}}
+function aplicarTema(t){
+  document.documentElement.dataset.tema=t;
+  try{localStorage.setItem(TEMA_KEY,t)}catch(e){}
+  var b=$("btn-tema");if(b)b.textContent=(t==="escuro")?"☀️":"🌙";
+  var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",t==="escuro"?"#000000":"#14532d");
+}
 /* Token da brapi.dev: chave SEPARADA do estado (mdi-v1), então nunca entra no export de backup */
 var TOKEN_KEY="mdi-brapi-token";
 function getToken(){try{return localStorage.getItem(TOKEN_KEY)||""}catch(e){return ""}}
@@ -353,6 +393,8 @@ function atualizarCotacoes(){
     .then(function(){btn.disabled=false;btn.textContent="🔄 Atualizar cotações"});
 }
 $("btn-atualizar-cot").addEventListener("click",atualizarCotacoes);
+$("btn-tema").addEventListener("click",function(){aplicarTema(document.documentElement.dataset.tema==="escuro"?"claro":"escuro")});
+aplicarTema(document.documentElement.dataset.tema||temaSalvo()||"claro");
 syncTokenUI();
 $("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
 $("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
