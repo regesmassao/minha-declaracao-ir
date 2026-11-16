@@ -47,12 +47,15 @@ nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
 <main>
 <!-- CARTEIRA -->
 <section class="tab ativa" id="tab-carteira">
+  <div class="card"><button id="btn-atualizar-cot" type="button">🔄 Atualizar cotações</button>
+  <p class="peq">Busca as cotações de ações, FIIs e ETFs na brapi.dev (no plano grátis, com ~30 min de atraso). <strong>Tesouro Direto fica fora</strong> da atualização automática: continue lançando o valor total dele na cotação manual.</p>
+  <div id="cot-auto-msg"></div></div>
   <div id="cart-resumo"></div>
   <div id="cart-alertas"></div>
   <h2>Alocação</h2><div class="card" id="cart-alocacao"></div>
   <h2>Posição por ativo</h2><div class="card" id="cart-posicao"></div>
   <h2>Cotação manual</h2>
-  <div class="card"><p class="peq">Sem cotação automática da B3: digite a cotação quando quiser atualizar. Para Tesouro Direto, digite o valor total atual do título.</p>
+  <div class="card"><p class="peq">A cotação manual continua valendo como reserva (e é o único jeito para o Tesouro Direto): digite a cotação quando quiser atualizar. Para Tesouro Direto, digite o valor total atual do título.</p>
   <form id="form-cotacao"><label>Ativo</label><select id="cot-ativo"></select>
   <label>Data da cotação</label><input type="date" id="cot-data" required>
   <label id="cot-rotulo">Cotação unitária (R$)</label><input type="number" id="cot-valor" step="0.01" min="0" required inputmode="decimal">
@@ -114,12 +117,18 @@ nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
   <label>Tipo</label><select id="nv-tipo"><option value="acao">Ação</option><option value="fii">FII</option><option value="etf">ETF</option><option value="tesouro">Tesouro Direto</option></select>
   <label>CNPJ</label><input type="text" id="nv-cnpj" placeholder="Em branco">
   <button type="submit">Adicionar ativo</button></form></div>
+  <h2>Cotações automáticas (brapi.dev)</h2>
+  <div class="card"><p class="peq">Crie uma conta grátis em <strong>brapi.dev</strong>, gere seu token e cole aqui: são 15.000 consultas/mês no plano grátis, e a cotação vem com ~30 min de atraso. O token fica salvo <strong>só neste aparelho</strong> e <strong>nunca</strong> entra no backup exportado.</p>
+  <label>Token brapi.dev</label><input type="password" id="br-token" placeholder="Cole seu token da brapi.dev" autocomplete="off">
+  <button id="btn-token-salvar" type="button">Salvar token</button>
+  <button id="btn-token-remover" type="button" class="sec">Remover token</button>
+  <p class="peq" id="br-token-status"></p></div>
   <h2>Backup</h2>
   <div class="card"><p class="peq">Os dados ficam só neste aparelho (localStorage). Exporte o backup de tempos em tempos.</p>
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão instalável (PWA). Sem sincronização com a B3. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão instalável (PWA). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -142,6 +151,44 @@ function seedState(){return {assets:SEED.map(function(s,i){return {id:"a"+(i+1),
 function load(){try{var r=localStorage.getItem(LS_KEY);if(r){var s=JSON.parse(r);if(s&&s.assets)return s}}catch(e){}return seedState()}
 var state=load();
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+/* Token da brapi.dev: chave SEPARADA do estado (mdi-v1), então nunca entra no export de backup */
+var TOKEN_KEY="mdi-brapi-token";
+function getToken(){try{return localStorage.getItem(TOKEN_KEY)||""}catch(e){return ""}}
+function setToken(t){try{if(t)localStorage.setItem(TOKEN_KEY,t);else localStorage.removeItem(TOKEN_KEY)}catch(e){}}
+/* Parse puro da resposta da brapi: devolve aplicadas [{symbol,price,time}] e faltantes [ticker] */
+function parseBrapiQuotes(json,wanted){
+  var res={aplicadas:[],faltantes:[]};
+  var bySym={};
+  var list=(json&&json.results)||[];
+  list.forEach(function(r){if(r&&r.symbol)bySym[String(r.symbol).toUpperCase()]=r});
+  (wanted||[]).forEach(function(t){
+    var r=bySym[String(t).toUpperCase()];
+    var price=r?Number(r.regularMarketPrice):NaN;
+    if(r&&isFinite(price)&&price>0)res.aplicadas.push({symbol:t,price:price,time:(r.regularMarketTime!=null?r.regularMarketTime:null)});
+    else res.faltantes.push(t);
+  });
+  return res;
+}
+function brapiQuoteStamp(time){
+  var d=null;
+  if(typeof time==="number"&&time>0)d=new Date(time*1000);
+  else if(typeof time==="string"&&time){var p=new Date(time);if(!isNaN(p.getTime()))d=p}
+  if(!d)d=new Date();
+  function p2(n){return String(n).padStart(2,"0")}
+  return {date:d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate()),hhmm:p2(d.getHours())+":"+p2(d.getMinutes())};
+}
+function aplicarCotacoesBrapi(aplicadas){
+  var n=0;
+  aplicadas.forEach(function(a){
+    var asset=null;
+    for(var i=0;i<state.assets.length;i++)if(state.assets[i].ticker===a.symbol){asset=state.assets[i];break}
+    if(!asset)return;
+    var st=brapiQuoteStamp(a.time);
+    state.quotes[asset.id]={value:a.price,date:st.date,time:st.hhmm,source:"brapi"};
+    n++;
+  });
+  return n;
+}
 function fmt(v){return (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
 function num(v){return (Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function pct(v){return (Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%"}
@@ -187,12 +234,13 @@ function renderCarteira(){
     var h="<h3>Por classe</h3><table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo</h3><table>"+ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){return linha(assetById(id).ticker,pos[id].cost)}).join("")+"</table>";
     $("cart-alocacao").innerHTML=h;
     var linhas=ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}
-      return "<tr><td>"+esc(a.ticker)+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
+      var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
+      return "<tr><td>"+esc(a.ticker)+selo+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
     $("cart-posicao").innerHTML="<table><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Custo</th><th>%</th><th>Proventos</th><th>Mercado</th><th>Dif.</th></tr>"+linhas.join("")+"</table>";
   }
   /* cotações */
   var qids=Object.keys(state.quotes);
-  $("cot-lista").innerHTML=qids.length?qids.map(function(id){var a=assetById(id),q=state.quotes[id];return '<div class="item">'+esc(a.ticker)+": "+(a.type==="tesouro"?"valor total "+fmt(q.value):fmt(q.value)+"/un")+" em "+esc(q.date)+' <button data-delquote="'+id+'">apagar</button></div>'}).join(""):'<p class="peq">Nenhuma cotação lançada.</p>';
+  $("cot-lista").innerHTML=qids.length?qids.map(function(id){var a=assetById(id),q=state.quotes[id];return '<div class="item">'+esc(a.ticker)+": "+(a.type==="tesouro"?"valor total "+fmt(q.value):fmt(q.value)+"/un")+" em "+esc(q.date)+(q.source==="brapi"?' <span class="peq">· brapi'+(q.time?" · "+esc(q.time):"")+"</span>":"")+' <button data-delquote="'+id+'">apagar</button></div>'}).join(""):'<p class="peq">Nenhuma cotação lançada.</p>';
   /* proventos resumo */
   if(!state.proceeds.length){$("cart-proventos").innerHTML='<div class="vazio">Nenhum provento lançado ainda.</div>'}
   else{
@@ -239,7 +287,7 @@ document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("
 $("op-modo-total").addEventListener("change",function(e){var t=e.target.checked;$("op-total").style.display=t?"block":"none";$("op-normal").style.display=t?"none":"block"});
 $("form-op").addEventListener("submit",function(e){e.preventDefault();var total=$("op-modo-total").checked;var op={id:uid(),date:$("op-data").value,assetId:$("op-ativo").value,side:$("op-lado").value,qty:total?1:(Number($("op-qtd").value)||0),price:total?(Number($("op-valor").value)||0):(Number($("op-preco").value)||0),fees:Number($("op-taxas").value)||0};if(!op.date||op.qty<=0||op.price<=0){alert("Preencha data, quantidade e preço.");return}state.operations.push(op);save();renderAll();e.target.reset();$("op-total").style.display="none";$("op-normal").style.display="block"});
 $("form-prov").addEventListener("submit",function(e){e.preventDefault();var p={id:uid(),date:$("pv-data").value,assetId:$("pv-ativo").value,type:$("pv-tipo").value,value:Number($("pv-valor").value)||0,ir:Number($("pv-ir").value)||0};if(!p.date||p.value<=0){alert("Preencha data e valor.");return}state.proceeds.push(p);save();renderAll();e.target.reset()});
-$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value};save();renderAll()});
+$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};save();renderAll()});
 $("aj-ativo").addEventListener("change",syncAjForm);
 $("form-ativo-edit").addEventListener("submit",function(e){e.preventDefault();var a=assetById($("aj-ativo").value);a.cnpj=$("aj-cnpj").value.trim();a.disc=$("aj-disc").value.trim();save();renderAll();alert("Ativo salvo.")});
 $("form-ativo-novo").addEventListener("submit",function(e){e.preventDefault();state.assets.push({id:uid(),ticker:$("nv-ticker").value.trim(),type:$("nv-tipo").value,cnpj:$("nv-cnpj").value.trim(),disc:""});save();renderAll();e.target.reset()});
@@ -249,6 +297,48 @@ document.addEventListener("click",function(e){var t=e.target;
   if(t.dataset.delquote){delete state.quotes[t.dataset.delquote];save();renderAll()}
   if(t.dataset.copy){var txt=t.dataset.copy;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){t.textContent="Copiado ✓"},function(){})}else{var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");t.textContent="Copiado ✓"}catch(err){}document.body.removeChild(ta)}}
 });
+/* ---- cotações automáticas (brapi.dev) ---- */
+function syncTokenUI(){var t=getToken();$("br-token").value=t;$("br-token-status").textContent=t?"Token salvo neste aparelho ✓ (ele não entra no backup exportado).":"Nenhum token salvo. Sem token, o app segue 100% manual."}
+$("btn-token-salvar").addEventListener("click",function(){var t=$("br-token").value.trim();if(!t){alert("Cole o token da brapi.dev primeiro.");return}setToken(t);syncTokenUI();alert("Token salvo neste aparelho.")});
+$("btn-token-remover").addEventListener("click",function(){setToken("");syncTokenUI();alert("Token removido deste aparelho.")});
+function atualizarCotacoes(){
+  var msg=$("cot-auto-msg"),btn=$("btn-atualizar-cot");
+  var token=getToken();
+  if(!token){msg.innerHTML='<div class="alerta">Para atualizar automaticamente, cole seu token grátis da brapi.dev na aba <strong>Ajustes</strong>. Enquanto isso, a cotação manual continua valendo.</div>';return}
+  var pos=posAtual();
+  var alvo=state.assets.filter(function(a){return a.type!=="tesouro"&&pos[a.id]&&pos[a.id].qty>0});
+  if(!alvo.length){msg.innerHTML='<div class="alerta">Nenhuma posição em ações, FIIs ou ETFs para atualizar. (Tesouro Direto continua manual, por valor total.)</div>';return}
+  var tickers=alvo.map(function(a){return a.ticker});
+  btn.disabled=true;btn.textContent="Atualizando…";
+  fetch("https://brapi.dev/api/quote/"+tickers.map(function(t){return encodeURIComponent(t)}).join(",")+"?token="+encodeURIComponent(token))
+    .then(function(res){
+      if(res.status===401||res.status===403){var e1=new Error("token");e1.tipo="token";throw e1}
+      if(!res.ok){var e2=new Error("http");e2.tipo="http";e2.status=res.status;throw e2}
+      return res.json();
+    })
+    .then(function(json){
+      if(json&&json.error&&!json.results){var e3=new Error("api");e3.tipo="token";throw e3}
+      var r=parseBrapiQuotes(json,tickers);
+      var n=aplicarCotacoesBrapi(r.aplicadas);
+      if(n>0){save();renderAll()}
+      var agora=new Date();function p2(x){return String(x).padStart(2,"0")}
+      var txt='<div class="card" style="margin-top:10px"><strong>✓ '+n+" cotaç"+(n===1?"ão atualizada":"ões atualizadas")+"</strong> às "+p2(agora.getHours())+":"+p2(agora.getMinutes())+".";
+      if(r.faltantes.length)txt+="<br>Sem retorno da brapi para: <strong>"+esc(r.faltantes.join(", "))+"</strong> — a cotação anterior desses ativos foi mantida.";
+      if(n===0)txt+="<br>Nenhuma cotação nova foi aplicada; suas cotações atuais continuam valendo.";
+      txt+="</div>";
+      $("cot-auto-msg").innerHTML=txt;
+    })
+    .catch(function(err){
+      var txt;
+      if(err&&err.tipo==="token")txt="Token inválido ou sem permissão (a brapi recusou a consulta). Confira o token na aba Ajustes — suas cotações atuais continuam valendo, nada foi apagado.";
+      else if(err&&err.tipo==="http")txt="A brapi respondeu com erro (HTTP "+err.status+"). Tente de novo mais tarde — suas cotações atuais continuam valendo, nada foi apagado.";
+      else txt="Não consegui buscar as cotações (sem internet ou a brapi fora do ar). Suas cotações atuais continuam valendo, nada foi apagado.";
+      $("cot-auto-msg").innerHTML='<div class="alerta">'+txt+"</div>";
+    })
+    .then(function(){btn.disabled=false;btn.textContent="🔄 Atualizar cotações"});
+}
+$("btn-atualizar-cot").addEventListener("click",atualizarCotacoes);
+syncTokenUI();
 $("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
 $("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
 var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
