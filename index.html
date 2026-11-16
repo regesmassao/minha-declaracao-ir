@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meu IR">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Minha Declaração de IR</title>
+<style>
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#f4f6f4;color:#1c2420;padding-bottom:84px}
+header{background:#14532d;color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:20px}header p{margin:4px 0 0;font-size:13px;opacity:.85}
+.aviso{background:#fff7d6;border-bottom:1px solid #e5d98a;padding:10px 16px;font-size:12.5px;line-height:1.45}
+main{max-width:720px;margin:0 auto;padding:14px}
+section.tab{display:none}section.tab.ativa{display:block}
+h2{font-size:17px;margin:18px 0 8px}h3{font-size:15px;margin:14px 0 6px}
+.card{background:#fff;border:1px solid #dde3dd;border-radius:12px;padding:14px;margin-bottom:12px}
+.resumo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.resumo .card{margin:0;text-align:center}.resumo .v{font-size:19px;font-weight:700;color:#14532d}.resumo .l{font-size:12px;color:#5a665e;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:right;padding:6px 4px;border-bottom:1px solid #edf0ed}th:first-child,td:first-child{text-align:left}
+.barra{background:#e7ece7;border-radius:6px;height:10px;overflow:hidden;min-width:70px}.barra i{display:block;height:100%;background:#1d7a44}
+.alerta{background:#fdecec;border:1px solid #f0b9b9;color:#7a1d1d;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px}
+form label{display:block;font-size:13px;margin:10px 0 4px;color:#39443c}
+input,select,textarea{width:100%;padding:10px;border:1px solid #c9d2c9;border-radius:8px;font-size:16px;background:#fff}
+button{background:#14532d;color:#fff;border:0;border-radius:8px;padding:11px 16px;font-size:15px;width:100%;margin-top:12px}
+button.sec{background:#e7ece7;color:#14532d}button.perigo{background:#b3261e;margin-top:6px;padding:8px;font-size:13px}
+.item{border-bottom:1px solid #edf0ed;padding:9px 0;font-size:13.5px}.item:last-child{border-bottom:0}
+.item button{width:auto;margin:4px 0 0;padding:5px 10px;font-size:12px;background:#e7ece7;color:#7a1d1d}
+pre{white-space:pre-wrap;word-break:break-word;background:#f7f9f7;border:1px solid #dde3dd;border-radius:8px;padding:10px;font-size:12.5px;line-height:1.5}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #d5dbd5;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:10}
+nav button{flex:1;background:none;color:#5a665e;margin:0;border-radius:0;padding:10px 2px;font-size:12px}
+nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
+.vazio{text-align:center;color:#5a665e;padding:22px 10px;font-size:14px;line-height:1.5}
+.pos{color:#1d7a44}.neg{color:#b3261e}.peq{font-size:12px;color:#5a665e}
+</style>
+</head>
+<body>
+<header><h1>Minha Declaração de IR</h1><p>Preço médio, proventos e blocos da DIRPF — dados só neste aparelho</p></header>
+<div class="aviso">⚠️ Ferramenta de organização: ela <strong>não substitui</strong> o informe de rendimentos da corretora nem a revisão anual das regras e campos da Receita Federal. Você revisa, confirma e envia.</div>
+<main>
+<!-- CARTEIRA -->
+<section class="tab ativa" id="tab-carteira">
+  <div id="cart-resumo"></div>
+  <div id="cart-alertas"></div>
+  <h2>Alocação</h2><div class="card" id="cart-alocacao"></div>
+  <h2>Posição por ativo</h2><div class="card" id="cart-posicao"></div>
+  <h2>Cotação manual</h2>
+  <div class="card"><p class="peq">Sem cotação automática da B3: digite a cotação quando quiser atualizar. Para Tesouro Direto, digite o valor total atual do título.</p>
+  <form id="form-cotacao"><label>Ativo</label><select id="cot-ativo"></select>
+  <label>Data da cotação</label><input type="date" id="cot-data" required>
+  <label id="cot-rotulo">Cotação unitária (R$)</label><input type="number" id="cot-valor" step="0.01" min="0" required inputmode="decimal">
+  <button type="submit">Salvar cotação</button></form><div id="cot-lista"></div></div>
+  <h2>Proventos</h2><div class="card" id="cart-proventos"></div>
+  <h2>Aportes e evolução (12 meses)</h2><div class="card" id="cart-aportes"></div>
+</section>
+<!-- OPERAÇÕES -->
+<section class="tab" id="tab-operacoes">
+  <h2>Lançar operação</h2>
+  <div class="card"><form id="form-op">
+  <label>Data</label><input type="date" id="op-data" required>
+  <label>Ativo</label><select id="op-ativo"></select>
+  <label>Tipo</label><select id="op-lado"><option value="compra">Compra</option><option value="venda">Venda</option></select>
+  <div id="op-normal"><label>Quantidade</label><input type="number" id="op-qtd" step="0.0001" min="0" inputmode="decimal">
+  <label>Preço unitário (R$)</label><input type="number" id="op-preco" step="0.01" min="0" inputmode="decimal"></div>
+  <div id="op-total" style="display:none"><label>Valor total aplicado (R$)</label><input type="number" id="op-valor" step="0.01" min="0" inputmode="decimal"></div>
+  <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="op-modo-total" style="width:auto"> Lançar por valor total (Tesouro Direto)</label>
+  <label>Taxas / custos (R$)</label><input type="number" id="op-taxas" step="0.01" min="0" value="0" inputmode="decimal">
+  <button type="submit">Salvar operação</button></form></div>
+  <h2>Operações lançadas</h2><div class="card" id="op-lista"></div>
+</section>
+<!-- PROVENTOS -->
+<section class="tab" id="tab-proventos">
+  <h2>Lançar provento</h2>
+  <div class="card"><form id="form-prov">
+  <label>Data</label><input type="date" id="pv-data" required>
+  <label>Ativo</label><select id="pv-ativo"></select>
+  <label>Tipo</label><select id="pv-tipo">
+    <option value="dividendo">Dividendo (isento)</option>
+    <option value="rend_fii">Rendimento de FII (isento)</option>
+    <option value="jcp">JCP (tributação exclusiva)</option>
+    <option value="tesouro">Juros / rendimento de Tesouro (tributação exclusiva)</option>
+  </select>
+  <label>Valor bruto (R$)</label><input type="number" id="pv-valor" step="0.01" min="0" required inputmode="decimal">
+  <label>IR retido na fonte (R$) — JCP</label><input type="number" id="pv-ir" step="0.01" min="0" value="0" inputmode="decimal">
+  <button type="submit">Salvar provento</button></form></div>
+  <h2>Proventos lançados</h2><div class="card" id="pv-lista"></div>
+</section>
+<!-- DECLARAÇÃO -->
+<section class="tab" id="tab-declaracao">
+  <h2>Blocos para a DIRPF</h2>
+  <div class="card"><label>Ano da declaração (ano-calendário)</label>
+  <select id="dec-ano"></select>
+  <p class="peq">Posição em 31/12 calculada só com operações até essa data, comparada a 31/12 do ano anterior.</p></div>
+  <div id="dec-blocos"></div>
+</section>
+<!-- AJUSTES -->
+<section class="tab" id="tab-ajustes">
+  <h2>Editar ativo</h2>
+  <div class="card"><form id="form-ativo-edit">
+  <label>Ativo</label><select id="aj-ativo"></select>
+  <label>CNPJ (preencha a partir do informe de rendimentos)</label><input type="text" id="aj-cnpj" placeholder="Em branco">
+  <label>Discriminação (texto de Bens e Direitos)</label><textarea id="aj-disc" rows="3" placeholder="Gerada automaticamente se ficar em branco"></textarea>
+  <button type="submit">Salvar ativo</button></form></div>
+  <h2>Adicionar ativo novo</h2>
+  <div class="card"><form id="form-ativo-novo">
+  <label>Ticker / nome</label><input type="text" id="nv-ticker" required>
+  <label>Tipo</label><select id="nv-tipo"><option value="acao">Ação</option><option value="fii">FII</option><option value="etf">ETF</option><option value="tesouro">Tesouro Direto</option></select>
+  <label>CNPJ</label><input type="text" id="nv-cnpj" placeholder="Em branco">
+  <button type="submit">Adicionar ativo</button></form></div>
+  <h2>Backup</h2>
+  <div class="card"><p class="peq">Os dados ficam só neste aparelho (localStorage). Exporte o backup de tempos em tempos.</p>
+  <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
+  <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
+  </div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão instalável (PWA). Sem sincronização com a B3. Valores sempre em R$.</p></div>
+</section>
+</main>
+<nav>
+<button data-tab="carteira" class="ativa">Carteira</button>
+<button data-tab="operacoes">Operações</button>
+<button data-tab="proventos">Proventos</button>
+<button data-tab="declaracao">Declaração</button>
+<button data-tab="ajustes">Ajustes</button>
+</nav>
+<script>
+"use strict";
+var LS_KEY="mdi-v1";
+var TIPOS={acao:"Ação",fii:"FII",etf:"ETF",tesouro:"Tesouro Direto"};
+var CLASSES={acao:"Ações",fii:"FIIs",etf:"ETFs",tesouro:"Tesouro Direto"};
+var GRUPO_COD={acao:"Grupo 03 — Participações Societárias, Código 01 (Ações)",fii:"Grupo 07 — Fundos, Código 03 (Fundos de Investimento Imobiliário)",etf:"Grupo 07 — Fundos (ETF / fundo de índice)",tesouro:"Grupo 04 — Aplicações e Investimentos, Código 02 (Títulos públicos — Tesouro Direto)"};
+var PV_TIPOS={dividendo:"Dividendo (isento)",rend_fii:"Rendimento de FII (isento)",jcp:"JCP (tributação exclusiva)",tesouro:"Juros de Tesouro (tributação exclusiva)"};
+var SEED=[["BBAS3","acao"],["BBSE3","acao"],["KLBN4","acao"],["CMIG4","acao"],["SAPR4","acao"],["TAEE11","acao"],["BTHF11","fii"],["XPML11","fii"],["TGAR11","fii"],["ALZR11","fii"],["KNRI11","fii"],["MXRF11","fii"],["KNCR11","fii"],["HGLG11","fii"],["IVVB11","etf"],["NASD11","etf"],["AUVP11","etf"],["GOLD11","etf"],["Tesouro Selic","tesouro"],["Tesouro IPCA+ 2032","tesouro"],["Tesouro Prefixado 2032","tesouro"]];
+function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function seedState(){return {assets:SEED.map(function(s,i){return {id:"a"+(i+1),ticker:s[0],type:s[1],cnpj:"",disc:""}}),operations:[],proceeds:[],quotes:{}}}
+function load(){try{var r=localStorage.getItem(LS_KEY);if(r){var s=JSON.parse(r);if(s&&s.assets)return s}}catch(e){}return seedState()}
+var state=load();
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+function fmt(v){return (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}
+function num(v){return (Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function pct(v){return (Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%"}
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function assetById(id){for(var i=0;i<state.assets.length;i++)if(state.assets[i].id===id)return state.assets[i];return null}
+/* Preço médio: compra soma qty*preco+taxas ao custo; venda reduz qty ao PM vigente, sem alterar o PM */
+function computePositions(ops,upto){
+  var pos={};
+  var sorted=ops.slice().sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0)});
+  sorted.forEach(function(op){
+    if(upto&&op.date>upto)return;
+    if(!pos[op.assetId])pos[op.assetId]={qty:0,cost:0,pm:0,sellResult:0,soldQty:0};
+    var p=pos[op.assetId];
+    var q=Number(op.qty)||0,pr=Number(op.price)||0,f=Number(op.fees)||0;
+    if(op.side==="compra"){p.cost+=q*pr+f;p.qty+=q;}
+    else{var res=q*(pr-p.pm)-f;p.sellResult+=res;p.soldQty+=q;p.cost-=q*p.pm;p.qty-=q;if(p.qty<1e-9){p.qty=0;p.cost=0}}
+    p.pm=p.qty>0?p.cost/p.qty:0;
+  });
+  return pos;
+}
+function proceedsByAsset(list){var m={};list.forEach(function(p){m[p.assetId]=(m[p.assetId]||0)+(Number(p.value)||0)});return m}
+function $(id){return document.getElementById(id)}
+function fillSelect(sel,assets){sel.innerHTML=assets.map(function(a){return '<option value="'+a.id+'">'+esc(a.ticker)+" — "+TIPOS[a.type]+"</option>"}).join("")}
+function renderSelects(){["op-ativo","pv-ativo","cot-ativo","aj-ativo"].forEach(function(id){fillSelect($(id),state.assets)});syncAjForm();}
+function syncAjForm(){var a=assetById($("aj-ativo").value);if(!a)return;$("aj-cnpj").value=a.cnpj||"";$("aj-disc").value=a.disc||""}
+function posAtual(){return computePositions(state.operations,null)}
+function renderCarteira(){
+  var pos=posAtual(),pbA=proceedsByAsset(state.proceeds);
+  var ids=Object.keys(pos).filter(function(id){return pos[id].qty>0});
+  var totalCusto=ids.reduce(function(s,id){return s+pos[id].cost},0);
+  var ano=new Date().getFullYear();
+  var pvAno=state.proceeds.filter(function(p){return p.date.slice(0,4)===String(ano)}).reduce(function(s,p){return s+(Number(p.value)||0)},0);
+  var pvTot=state.proceeds.reduce(function(s,p){return s+(Number(p.value)||0)},0);
+  $("cart-resumo").innerHTML='<div class="resumo"><div class="card"><div class="v">'+fmt(totalCusto)+'</div><div class="l">Total investido (a custo)</div></div><div class="card"><div class="v">'+ids.length+'</div><div class="l">Ativos com posição</div></div><div class="card"><div class="v">'+fmt(pvAno)+'</div><div class="l">Proventos em '+ano+'</div></div><div class="card"><div class="v">'+fmt(pvTot)+'</div><div class="l">Proventos no total</div></div></div>';
+  if(!state.operations.length){$("cart-alertas").innerHTML="";$("cart-alocacao").innerHTML='<div class="vazio">Nenhuma operação lançada ainda.<br>Lance suas compras na aba <strong>Operações</strong> e a carteira aparece aqui.</div>';$("cart-posicao").innerHTML='<div class="vazio">Sem posição por enquanto.</div>';}
+  else{
+    var porClasse={};ids.forEach(function(id){var a=assetById(id);var c=CLASSES[a.type];porClasse[c]=(porClasse[c]||0)+pos[id].cost});
+    var alertas=[];
+    ids.forEach(function(id){var pc=totalCusto?pos[id].cost/totalCusto*100:0;if(pc>25)alertas.push("⚠️ "+assetById(id).ticker+" está com "+pct(pc)+" da carteira (acima de 25%).")});
+    Object.keys(porClasse).forEach(function(c){var pc=totalCusto?porClasse[c]/totalCusto*100:0;if(pc>50)alertas.push("⚠️ A classe "+c+" está com "+pct(pc)+" da carteira (acima de 50%).")});
+    $("cart-alertas").innerHTML=alertas.map(function(a){return '<div class="alerta">'+esc(a)+"</div>"}).join("");
+    function linha(nome,valor){var pc=totalCusto?valor/totalCusto*100:0;return "<tr><td>"+esc(nome)+'</td><td style="min-width:90px"><div class="barra"><i style="width:'+Math.min(100,pc)+'%"></i></div></td><td>'+pct(pc)+"</td><td>"+fmt(valor)+"</td></tr>"}
+    var h="<h3>Por classe</h3><table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo</h3><table>"+ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){return linha(assetById(id).ticker,pos[id].cost)}).join("")+"</table>";
+    $("cart-alocacao").innerHTML=h;
+    var linhas=ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}
+      return "<tr><td>"+esc(a.ticker)+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
+    $("cart-posicao").innerHTML="<table><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Custo</th><th>%</th><th>Proventos</th><th>Mercado</th><th>Dif.</th></tr>"+linhas.join("")+"</table>";
+  }
+  /* cotações */
+  var qids=Object.keys(state.quotes);
+  $("cot-lista").innerHTML=qids.length?qids.map(function(id){var a=assetById(id),q=state.quotes[id];return '<div class="item">'+esc(a.ticker)+": "+(a.type==="tesouro"?"valor total "+fmt(q.value):fmt(q.value)+"/un")+" em "+esc(q.date)+' <button data-delquote="'+id+'">apagar</button></div>'}).join(""):'<p class="peq">Nenhuma cotação lançada.</p>';
+  /* proventos resumo */
+  if(!state.proceeds.length){$("cart-proventos").innerHTML='<div class="vazio">Nenhum provento lançado ainda.</div>'}
+  else{
+    var porAno={};state.proceeds.forEach(function(p){var y=p.date.slice(0,4);porAno[y]=(porAno[y]||0)+(Number(p.value)||0)});
+    var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
+    var ult12=state.proceeds.filter(function(p){return p.date>corteS}).reduce(function(s,p){return s+(Number(p.value)||0)},0);
+    var h2=Object.keys(porAno).sort().map(function(y){return "<tr><td>"+y+"</td><td>"+fmt(porAno[y])+"</td></tr>"}).join("");
+    var yoc=totalCusto?pvTot/totalCusto*100:0;
+    $("cart-proventos").innerHTML="<table>"+h2+"</table><p>Média mensal (últimos 12 meses): <strong>"+fmt(ult12/12)+"</strong></p><p>Rendimento sobre o custo (geral): <strong>"+pct(yoc)+"</strong></p><h3>Por ativo</h3><table>"+Object.keys(pbA).sort(function(x,y){return pbA[y]-pbA[x]}).map(function(id){var c=pos[id]?pos[id].cost:0;return "<tr><td>"+esc(assetById(id).ticker)+"</td><td>"+fmt(pbA[id])+"</td><td>"+(c?pct(pbA[id]/c*100):"—")+"</td></tr>"}).join("")+"</table>";
+  }
+  /* aportes e evolução */
+  var meses=[],hoje=new Date();
+  for(var i=11;i>=0;i--){var d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);meses.push({chave:d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"),rotulo:(d.getMonth()+1)+"/"+d.getFullYear(),fim:new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10)})}
+  $("cart-aportes").innerHTML="<table><tr><th>Mês</th><th>Aportes</th><th>Total investido</th></tr>"+meses.map(function(m){var ap=state.operations.filter(function(o){return o.side==="compra"&&o.date.slice(0,7)===m.chave}).reduce(function(s,o){return s+(Number(o.qty)||0)*(Number(o.price)||0)+(Number(o.fees)||0)},0);var pp=computePositions(state.operations,m.fim);var tot=Object.keys(pp).reduce(function(s,id){return s+pp[id].cost},0);return "<tr><td>"+m.rotulo+"</td><td>"+fmt(ap)+"</td><td>"+fmt(tot)+"</td></tr>"}).join("")+"</table>";
+}
+function renderOps(){
+  var pos=posAtual();
+  if(!state.operations.length){$("op-lista").innerHTML='<div class="vazio">Nenhuma operação lançada.</div>';return}
+  $("op-lista").innerHTML=state.operations.slice().sort(function(a,b){return a.date<b.date?1:-1}).map(function(o){var a=assetById(o.assetId);var extra="";if(o.side==="venda"&&pos[o.assetId]){extra=""}return '<div class="item">'+esc(o.date)+" · "+esc(a?a.ticker:"?")+" · "+(o.side==="compra"?"Compra":"Venda")+" · "+num(o.qty)+" × "+fmt(o.price)+(o.fees?" · taxas "+fmt(o.fees):"")+" = "+fmt((Number(o.qty)||0)*(Number(o.price)||0)+(Number(o.fees)||0))+' <button data-delop="'+o.id+'">apagar</button></div>'}).join("")+
+  Object.keys(pos).filter(function(id){return pos[id].soldQty>0}).map(function(id){return '<p class="peq">Resultado de vendas de '+esc(assetById(id).ticker)+": <strong>"+fmt(pos[id].sellResult)+"</strong></p>"}).join("");
+}
+function renderProvs(){
+  if(!state.proceeds.length){$("pv-lista").innerHTML='<div class="vazio">Nenhum provento lançado.</div>';return}
+  $("pv-lista").innerHTML=state.proceeds.slice().sort(function(a,b){return a.date<b.date?1:-1}).map(function(p){var a=assetById(p.assetId);return '<div class="item">'+esc(p.date)+" · "+esc(a?a.ticker:"?")+" · "+PV_TIPOS[p.type]+" · "+fmt(p.value)+(p.ir?" · IR retido "+fmt(p.ir):"")+' <button data-delpv="'+p.id+'">apagar</button></div>'}).join("");
+}
+function discAuto(a,p){if(a.disc)return a.disc;var base={acao:"ações",fii:"cotas de fundo de investimento imobiliário",etf:"cotas de ETF",tesouro:"título público federal"}[a.type];return num(p.qty)+" "+base+" — "+a.ticker+(a.cnpj?" — CNPJ "+a.cnpj:"")}
+function renderDeclaracao(){
+  var ano=Number($("dec-ano").value)||2026;
+  var posFim=computePositions(state.operations,ano+"-12-31"),posAnt=computePositions(state.operations,(ano-1)+"-12-31");
+  var ids=state.assets.filter(function(a){var p=posFim[a.id];return p&&p.qty>0}).map(function(a){return a.id});
+  var bloco1=ids.length?ids.map(function(id){var a=assetById(id),p=posFim[id],pa=posAnt[id]||{cost:0};return a.ticker+" ("+GRUPO_COD[a.type]+")\nDiscriminação: "+discAuto(a,p)+"\nSituação em 31/12/"+(ano-1)+": "+fmt(pa.cost)+"\nSituação em 31/12/"+ano+": "+fmt(p.cost)+"\n"}).join("\n"):"(sem posição em 31/12/"+ano+")";
+  function blocoTipos(tipos,titulo){var doAno=state.proceeds.filter(function(p){return p.date.slice(0,4)===String(ano)&&tipos.indexOf(p.type)>=0});if(!doAno.length)return titulo+"\n(sem lançamentos em "+ano+")";var m={};doAno.forEach(function(p){if(!m[p.assetId])m[p.assetId]={v:0,ir:0};m[p.assetId].v+=Number(p.value)||0;m[p.assetId].ir+=Number(p.ir)||0});var tot=0;var linhas=Object.keys(m).map(function(id){tot+=m[id].v;var a=assetById(id);return a.ticker+(a.cnpj?" (CNPJ "+a.cnpj+")":"")+": "+fmt(m[id].v)+(m[id].ir?" (IR retido: "+fmt(m[id].ir)+")":"")});return titulo+"\n"+linhas.join("\n")+"\nTOTAL: "+fmt(tot)}
+  var b2=blocoTipos(["dividendo","rend_fii"],"RENDIMENTOS ISENTOS E NÃO TRIBUTÁVEIS — dividendos e rendimentos de FII ("+ano+")");
+  var b3=blocoTipos(["jcp","tesouro"],"RENDIMENTOS SUJEITOS À TRIBUTAÇÃO EXCLUSIVA/DEFINITIVA — JCP e Tesouro Direto ("+ano+")");
+  function bloco(t,txt){return '<div class="card"><h3>'+esc(t)+'</h3><pre>'+esc(txt)+'</pre><button data-copy="'+esc(txt)+'">Copiar bloco</button></div>'}
+  $("dec-blocos").innerHTML=bloco("Bens e Direitos — posição em 31/12/"+ano,bloco1)+bloco("Rendimentos Isentos",b2)+bloco("Tributação Exclusiva",b3);
+}
+function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao()}
+/* navegação */
+document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("ativa")});b.classList.add("ativa");document.querySelectorAll("section.tab").forEach(function(s){s.classList.remove("ativa")});$("tab-"+b.dataset.tab).classList.add("ativa");window.scrollTo(0,0)})});
+/* anos da declaração */
+(function(){var s=$("dec-ano");for(var y=2023;y<=2027;y++){var o=document.createElement("option");o.value=y;o.textContent=y;if(y===2026)o.selected=true;s.appendChild(o)}s.addEventListener("change",renderDeclaracao)})();
+/* formulários */
+$("op-modo-total").addEventListener("change",function(e){var t=e.target.checked;$("op-total").style.display=t?"block":"none";$("op-normal").style.display=t?"none":"block"});
+$("form-op").addEventListener("submit",function(e){e.preventDefault();var total=$("op-modo-total").checked;var op={id:uid(),date:$("op-data").value,assetId:$("op-ativo").value,side:$("op-lado").value,qty:total?1:(Number($("op-qtd").value)||0),price:total?(Number($("op-valor").value)||0):(Number($("op-preco").value)||0),fees:Number($("op-taxas").value)||0};if(!op.date||op.qty<=0||op.price<=0){alert("Preencha data, quantidade e preço.");return}state.operations.push(op);save();renderAll();e.target.reset();$("op-total").style.display="none";$("op-normal").style.display="block"});
+$("form-prov").addEventListener("submit",function(e){e.preventDefault();var p={id:uid(),date:$("pv-data").value,assetId:$("pv-ativo").value,type:$("pv-tipo").value,value:Number($("pv-valor").value)||0,ir:Number($("pv-ir").value)||0};if(!p.date||p.value<=0){alert("Preencha data e valor.");return}state.proceeds.push(p);save();renderAll();e.target.reset()});
+$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value};save();renderAll()});
+$("aj-ativo").addEventListener("change",syncAjForm);
+$("form-ativo-edit").addEventListener("submit",function(e){e.preventDefault();var a=assetById($("aj-ativo").value);a.cnpj=$("aj-cnpj").value.trim();a.disc=$("aj-disc").value.trim();save();renderAll();alert("Ativo salvo.")});
+$("form-ativo-novo").addEventListener("submit",function(e){e.preventDefault();state.assets.push({id:uid(),ticker:$("nv-ticker").value.trim(),type:$("nv-tipo").value,cnpj:$("nv-cnpj").value.trim(),disc:""});save();renderAll();e.target.reset()});
+document.addEventListener("click",function(e){var t=e.target;
+  if(t.dataset.delop){state.operations=state.operations.filter(function(o){return o.id!==t.dataset.delop});save();renderAll()}
+  if(t.dataset.delpv){state.proceeds=state.proceeds.filter(function(p){return p.id!==t.dataset.delpv});save();renderAll()}
+  if(t.dataset.delquote){delete state.quotes[t.dataset.delquote];save();renderAll()}
+  if(t.dataset.copy){var txt=t.dataset.copy;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){t.textContent="Copiado ✓"},function(){})}else{var ta=document.createElement("textarea");ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");t.textContent="Copiado ✓"}catch(err){}document.body.removeChild(ta)}}
+});
+$("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
+$("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
+var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
+save();renderAll();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
+</script>
+</body>
+</html>
