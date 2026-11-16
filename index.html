@@ -88,7 +88,6 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <div id="cart-resumo"></div>
   <div id="cart-alertas"></div>
   <h2 data-ac="alocacao">Alocação</h2><div class="card" id="cart-alocacao"></div>
-  <h2 data-ac="posicao">Posição por ativo</h2><div class="card" id="cart-posicao"></div>
   <h2 data-ac="cotacao">Cotação manual</h2>
   <div class="card"><p class="peq">A cotação manual continua valendo como reserva (e é o único jeito para o Tesouro Direto): digite a cotação quando quiser atualizar. Para Tesouro Direto, digite o valor total atual do título.</p>
   <form id="form-cotacao"><label>Ativo</label><select id="cot-ativo"></select>
@@ -179,7 +178,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 10.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 11 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -284,7 +283,7 @@ function renderCarteira(){
   var pvAno=state.proceeds.filter(function(p){return p.date.slice(0,4)===String(ano)}).reduce(function(s,p){return s+(Number(p.value)||0)},0);
   var pvTot=state.proceeds.reduce(function(s,p){return s+(Number(p.value)||0)},0);
   $("cart-resumo").innerHTML='<div class="resumo"><div class="card"><div class="v">'+fmt(totalCusto)+'</div><div class="l">Total investido (a custo)</div></div><div class="card"><div class="v">'+ids.length+'</div><div class="l">Ativos com posição</div></div><div class="card"><div class="v">'+fmt(pvAno)+'</div><div class="l">Proventos em '+ano+'</div></div><div class="card"><div class="v">'+fmt(pvTot)+'</div><div class="l">Proventos no total</div></div></div>';
-  if(!state.operations.length){$("cart-alertas").innerHTML="";$("cart-alocacao").innerHTML='<div class="vazio">Nenhuma operação lançada ainda.<br>Lance suas compras na aba <strong>Operações</strong> e a carteira aparece aqui.</div>';$("cart-posicao").innerHTML='<div class="vazio">Sem posição por enquanto.</div>';}
+  if(!state.operations.length){$("cart-alertas").innerHTML="";$("cart-alocacao").innerHTML='<div class="vazio">Nenhuma operação lançada ainda.<br>Lance suas compras na aba <strong>Operações</strong> e a carteira aparece aqui.</div>';}
   else{
     var porClasse={};ids.forEach(function(id){var a=assetById(id);var c=CLASSES[a.type];porClasse[c]=(porClasse[c]||0)+pos[id].cost});
     var alertas=[];
@@ -293,16 +292,18 @@ function renderCarteira(){
     $("cart-alertas").innerHTML=alertas.map(function(a){return '<div class="alerta">'+esc(a)+"</div>"}).join("");
     function linha(nome,valor){var pc=totalCusto?valor/totalCusto*100:0;return "<tr><td>"+esc(nome)+'</td><td style="min-width:90px"><div class="barra"><i style="width:'+Math.min(100,pc)+'%"></i></div></td><td>'+pct(pc)+"</td><td>"+fmt(valor)+"</td></tr>"}
     var nomeClasse={"Ações":"acao","FIIs":"fii","ETFs":"etf","Tesouro Direto":"tesouro"};
-    var partesPizza=Object.keys(porClasse).map(function(c){return {rotulo:c,valor:porClasse[c],cor:CORES_CLASSE[nomeClasse[c]]||"#888"}});
-    var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira")+"<table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo — mapa da carteira</h3>"+treemapSVG((function(){var cont={};return ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id);var k=a.type;cont[k]=(cont[k]||0)+1;var ops=[1,0.8,0.64,0.52];return {rotulo:a.ticker,valor:pos[id].cost,cor:CORES_CLASSE[a.type]||"#888",opacidade:ops[Math.min(3,cont[k]-1)]}})})(),360,300)+"<p class=\"peq\">Cada retângulo é um ativo, do tamanho da sua fatia na carteira; a cor é a classe (azul: ações · verde: FIIs · âmbar: ETFs · roxo: Tesouro). Os detalhes de cada um estão na tabela Posição por ativo, logo abaixo.</p>";
-    $("cart-alocacao").innerHTML=h;
+    var maiorC=null,maiorV=-1;Object.keys(porClasse).forEach(function(c){if(porClasse[c]>maiorV){maiorV=porClasse[c];maiorC=nomeClasse[c]}});
+    alocMaiorCache=maiorC;
+    var selClasse=(alocClasseSel===undefined)?maiorC:alocClasseSel;
+    var partesPizza=Object.keys(porClasse).map(function(c){return {rotulo:c,valor:porClasse[c],cor:CORES_CLASSE[nomeClasse[c]]||"#888",chave:nomeClasse[c],sel:(selClasse===nomeClasse[c])}});
     var dadosPos=ids.map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}return {id:id,ticker:a.ticker,a:a,p:p,q:q,merc:merc,dif:dif,valor:(merc!==null?merc:p.cost),pctCarteira:0,difPct:(dif!==null&&p.cost)?dif/p.cost*100:0,cor:CORES_CLASSE[a.type]||"#888"}});
     var totValor=dadosPos.reduce(function(s2,d){return s2+d.valor},0);dadosPos.forEach(function(d){d.pctCarteira=totValor?d.valor/totValor*100:0});
     dadosPos.sort(function(x,y){return y.valor-x.valor});
+    var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira",true)+'<div id="aloc-ativos">'+classeAtivosHTML(dadosPos,pbA,selClasse)+"</div><h3>Mapa da carteira</h3>"+treemapSVG((function(){var cont={};return ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id);var k=a.type;cont[k]=(cont[k]||0)+1;var ops=[1,0.8,0.64,0.52];return {rotulo:a.ticker,valor:pos[id].cost,cor:CORES_CLASSE[a.type]||"#888",opacidade:ops[Math.min(3,cont[k]-1)]}})})(),360,300)+"<p class=\"peq\">Cada retângulo é um ativo, do tamanho da sua fatia na carteira; a cor é a classe (azul: ações · verde: FIIs · âmbar: ETFs · roxo: Tesouro). Toque numa fatia da pizza para ver os ativos da classe.</p>";
+    $("cart-alocacao").innerHTML=h;
     var linhas=dadosPos.map(function(d){var a=d.a,p=d.p,q=d.q,merc=d.merc,dif=d.dif,id=d.id;
       var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
       return "<tr><td>"+esc(a.ticker)+selo+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
-    $("cart-posicao").innerHTML=posicaoCompacta(dadosPos,pbA);
   }
   /* cotações */
   var qids=Object.keys(state.quotes);
@@ -353,10 +354,13 @@ document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("
 $("op-modo-total").addEventListener("change",function(e){var t=e.target.checked;$("op-total").style.display=t?"block":"none";$("op-normal").style.display=t?"none":"block"});
 $("form-op").addEventListener("submit",function(e){e.preventDefault();var total=$("op-modo-total").checked;var op={id:uid(),date:$("op-data").value,assetId:$("op-ativo").value,side:$("op-lado").value,qty:total?1:(Number($("op-qtd").value)||0),price:total?(Number($("op-valor").value)||0):(Number($("op-preco").value)||0),fees:Number($("op-taxas").value)||0};if(!op.date||op.qty<=0||op.price<=0){alert("Preencha data, quantidade e preço.");return}state.operations.push(op);save();renderAll();e.target.reset();$("op-total").style.display="none";$("op-normal").style.display="block"});
 $("form-prov").addEventListener("submit",function(e){e.preventDefault();var p={id:uid(),date:$("pv-data").value,assetId:$("pv-ativo").value,type:$("pv-tipo").value,value:Number($("pv-valor").value)||0,ir:Number($("pv-ir").value)||0};if(!p.date||p.value<=0){alert("Preencha data e valor.");return}state.proceeds.push(p);save();renderAll();e.target.reset()});
-$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};/* Posição compacta: tocar numa linha abre/fecha os detalhes */
-$("cart-posicao").addEventListener("click",function(e){
-  var linha=(e.target&&e.target.closest)?e.target.closest("[data-pos]"):null;if(!linha)return;
-  var det=$("det-"+linha.getAttribute("data-pos"));if(det)det.style.display=(det.style.display==="none"?"block":"none");
+$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};/* Pizza interativa: tocar na fatia/legenda escolhe a classe; tocar num ativo abre os detalhes */
+$("cart-alocacao").addEventListener("click",function(e){
+  if(!e.target||!e.target.closest)return;
+  var linha=e.target.closest("[data-pos]");
+  if(linha){var det=$("det-"+linha.getAttribute("data-pos"));if(det)det.style.display=(det.style.display==="none"?"block":"none");return}
+  var cl=e.target.closest("[data-classe]");
+  if(cl){var k=cl.getAttribute("data-classe");var atual=(alocClasseSel===undefined)?alocMaiorCache:alocClasseSel;alocClasseSel=(atual===k)?null:k;renderCarteira()}
 });
 initAcordeon();
 registrarSnapshot();save();renderAll()});
@@ -461,7 +465,7 @@ save();renderAll();
 
 
 /* Pizza (donut) em SVG puro: partes [{rotulo, valor, cor}] */
-function pizzaSVG(partes,titulo){
+function pizzaSVG(partes,titulo,clicavel){
   var total=partes.reduce(function(s,p){return s+(Number(p.valor)||0)},0);
   if(!(total>0))return "";
   var R=15.9155,C=2*Math.PI*R,off=25,seg="";
@@ -469,11 +473,13 @@ function pizzaSVG(partes,titulo){
     var frac=(Number(p.valor)||0)/total;
     if(frac<=0)return;
     var len=Math.max(0,frac*C-0.7);
-    seg+='<circle r="'+R+'" cx="21" cy="21" fill="none" stroke="'+p.cor+'" stroke-width="7.5" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'"></circle>';
+    var extra=(clicavel&&p.chave)?' data-classe="'+p.chave+'" style="cursor:pointer"':"";
+    seg+='<circle r="'+R+'" cx="21" cy="21" fill="none" stroke="'+p.cor+'" stroke-width="7.5" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'"'+extra+'></circle>';
     off-=frac*C;
   });
   var leg=partes.filter(function(p){return (Number(p.valor)||0)>0}).map(function(p){
-    return '<div class="peq" style="margin:2px 0"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+p.cor+';margin-right:6px"></span>'+esc(p.rotulo)+" — <strong>"+pct((Number(p.valor)||0)/total*100)+"</strong> · "+fmt(p.valor)+"</div>";
+    var extra=(clicavel&&p.chave)?' data-classe="'+p.chave+'" style="margin:2px 0;cursor:pointer'+(p.sel?";font-weight:700;text-decoration:underline":"")+'"':' style="margin:2px 0"';
+    return '<div class="peq"'+extra+'><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+p.cor+';margin-right:6px"></span>'+esc(p.rotulo)+" — <strong>"+pct((Number(p.valor)||0)/total*100)+"</strong> · "+fmt(p.valor)+"</div>";
   }).join("");
   return '<div style="text-align:center"><svg viewBox="0 0 42 42" width="170" height="170" role="img" aria-label="'+esc(titulo)+'">'+seg+'<text x="21" y="20" text-anchor="middle" font-size="4.6" font-weight="bold" fill="currentColor">'+esc(titulo)+'</text><text x="21" y="25.5" text-anchor="middle" font-size="3.6" fill="currentColor">'+fmt(total)+'</text></svg><div style="text-align:left;display:inline-block">'+leg+"</div></div>";
 }
@@ -541,7 +547,7 @@ function barrasPosicao(dados){
 var SECOES_KEY="mdi-secoes";
 function secoesSalvas(){try{return JSON.parse(localStorage.getItem(SECOES_KEY)||"{}")}catch(e){return {}}}
 function initAcordeon(){
-  var def={alocacao:false,posicao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
+  var def={alocacao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
   var salvo=secoesSalvas();
   document.querySelectorAll('#tab-carteira h2[data-ac]').forEach(function(h){
     var k=h.getAttribute("data-ac");var corpo=h.nextElementSibling;if(!corpo)return;
@@ -572,6 +578,16 @@ function posicaoCompacta(dados,pbA){
       +"</div>";
   });
   return h;
+}
+
+/* Classe selecionada na pizza: undefined = automática (maior classe); null = recolhida */
+var alocClasseSel=undefined,alocMaiorCache=null;
+function classeAtivosHTML(dados,pbA,sel){
+  var NOMES_CLASSE={acao:"Ações",fii:"FIIs",etf:"ETFs",tesouro:"Tesouro Direto"};
+  if(!sel)return '<p class="peq">👆 Toque numa <strong>fatia da pizza</strong> (ou no nome da classe na legenda) para ver os ativos daquela classe aqui.</p>';
+  var daClasse=dados.filter(function(d){return d.a.type===sel});
+  if(!daClasse.length)return '<p class="peq">Sem ativos nessa classe.</p>';
+  return "<h3>"+NOMES_CLASSE[sel]+" — "+daClasse.length+(daClasse.length===1?" ativo":" ativos")+"</h3>"+posicaoCompacta(daClasse,pbA);
 }
 /* ===== Evolução do patrimônio, proventos mensais, fechamento e importação CSV ===== */
 function fmtMil(v){if(Math.abs(v)>=1000)return "R$ "+(v/1000).toFixed(1).replace(".",",")+" mil";return fmt(v)}
