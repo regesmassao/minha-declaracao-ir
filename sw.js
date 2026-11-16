@@ -1,5 +1,5 @@
 // Minha Declaração de IR — service worker (cache-first do próprio app)
-var CACHE = "mdi-pwa-v2";
+var CACHE = "mdi-pwa-v3";
 var FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", function (e) {

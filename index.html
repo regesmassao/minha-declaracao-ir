@@ -62,6 +62,15 @@ nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
   <button type="submit">Salvar cotação</button></form><div id="cot-lista"></div></div>
   <h2>Proventos</h2><div class="card" id="cart-proventos"></div>
   <h2>Aportes e evolução (12 meses)</h2><div class="card" id="cart-aportes"></div>
+  <h2>Rebalanceamento — onde aportar</h2>
+  <div class="card"><p class="peq">Defina sua <strong>alocação-alvo</strong> por classe e o valor do próximo aporte. O botão analisa a carteira (a mercado, pelas cotações; sem cotação, usa o custo) e monta a sugestão de compras — <strong>sem vender nada</strong>: o ajuste é feito só com aportes novos, como é a sua estratégia.</p>
+  <label>Valor do próximo aporte (R$)</label><input type="number" id="reb-aporte" step="0.01" min="0" inputmode="decimal">
+  <label>Alvo — Ações (%)</label><input type="number" id="reb-t-acao" step="1" min="0" max="100" inputmode="decimal">
+  <label>Alvo — FIIs (%)</label><input type="number" id="reb-t-fii" step="1" min="0" max="100" inputmode="decimal">
+  <label>Alvo — ETFs (%)</label><input type="number" id="reb-t-etf" step="1" min="0" max="100" inputmode="decimal">
+  <label>Alvo — Tesouro Direto (%)</label><input type="number" id="reb-t-tesouro" step="1" min="0" max="100" inputmode="decimal">
+  <button id="btn-reb" type="button">🎯 Analisar próximo aporte</button>
+  <div id="reb-resultado"></div></div>
 </section>
 <!-- OPERAÇÕES -->
 <section class="tab" id="tab-operacoes">
@@ -278,7 +287,7 @@ function renderDeclaracao(){
   function bloco(t,txt){return '<div class="card"><h3>'+esc(t)+'</h3><pre>'+esc(txt)+'</pre><button data-copy="'+esc(txt)+'">Copiar bloco</button></div>'}
   $("dec-blocos").innerHTML=bloco("Bens e Direitos — posição em 31/12/"+ano,bloco1)+bloco("Rendimentos Isentos",b2)+bloco("Tributação Exclusiva",b3);
 }
-function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao()}
+function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao();syncRebForm()}
 /* navegação */
 document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("ativa")});b.classList.add("ativa");document.querySelectorAll("section.tab").forEach(function(s){s.classList.remove("ativa")});$("tab-"+b.dataset.tab).classList.add("ativa");window.scrollTo(0,0)})});
 /* anos da declaração */
@@ -343,6 +352,91 @@ $("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.st
 $("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
 var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
 save();renderAll();
+
+/* ===== Rebalanceamento por aportes ===== */
+var REB_PADRAO={aporte:500,alvos:{acao:25,fii:30,etf:20,tesouro:25}};
+var REB_MULT={"BBSE3":2,"CMIG4":2,"TAEE11":0.5,"IVVB11":1.5,"NASD11":1.5,"AUVP11":1.5,"GOLD11":0.7};
+var REB_MOTIVO={"BBSE3":"sua prioridade definida","CMIG4":"sua prioridade definida","TAEE11":"aporte menor, pela sua estratégia","IVVB11":"reforça a diversificação internacional","NASD11":"reforça a diversificação internacional","AUVP11":"reforça a diversificação internacional","GOLD11":"ouro já tem seu espaço; prioridade menor agora"};
+function rebCfg(){var r=(state&&state.rebalance)||{};var a=r.alvos||{};return {aporte:(Number(r.aporte)>0?Number(r.aporte):REB_PADRAO.aporte),alvos:{acao:(a.acao!=null?Number(a.acao):REB_PADRAO.alvos.acao),fii:(a.fii!=null?Number(a.fii):REB_PADRAO.alvos.fii),etf:(a.etf!=null?Number(a.etf):REB_PADRAO.alvos.etf),tesouro:(a.tesouro!=null?Number(a.tesouro):REB_PADRAO.alvos.tesouro)}}}
+function rebSalvar(){var g=function(id){return Number($(id).value)||0};state.rebalance={aporte:g("reb-aporte"),alvos:{acao:g("reb-t-acao"),fii:g("reb-t-fii"),etf:g("reb-t-etf"),tesouro:g("reb-t-tesouro")}};save()}
+function syncRebForm(){if(typeof REB_PADRAO==="undefined")return;var c=rebCfg();if(document.activeElement&&document.activeElement.id&&document.activeElement.id.indexOf("reb-")===0)return;$("reb-aporte").value=c.aporte;$("reb-t-acao").value=c.alvos.acao;$("reb-t-fii").value=c.alvos.fii;$("reb-t-etf").value=c.alvos.etf;$("reb-t-tesouro").value=c.alvos.tesouro}
+function analisarRebalanceamento(){
+  rebSalvar();
+  var cfg=rebCfg(),aporte=cfg.aporte;
+  var somaAlvo=cfg.alvos.acao+cfg.alvos.fii+cfg.alvos.etf+cfg.alvos.tesouro;
+  var pos=posAtual();
+  var ids=Object.keys(pos).filter(function(id){return pos[id].qty>0});
+  if(!ids.length||!(aporte>0)){$("reb-resultado").innerHTML='<p class="peq">Lance suas operações e um valor de aporte para analisar.</p>';return}
+  function mercado(id){var a=assetById(id),q=state.quotes[id];if(q&&Number(q.value)>0)return a.type==="tesouro"?Number(q.value):pos[id].qty*Number(q.value);return pos[id].cost}
+  function preco(id){var a=assetById(id),q=state.quotes[id];if(a.type!=="tesouro"&&q&&Number(q.value)>0)return Number(q.value);return pos[id].pm}
+  var total=ids.reduce(function(s,id){return s+mercado(id)},0);
+  var novoTotal=total+aporte;
+  var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
+  var pv12={};state.proceeds.filter(function(p){return p.date>corteS}).forEach(function(p){pv12[p.assetId]=(pv12[p.assetId]||0)+(Number(p.value)||0)});
+  var rendaMesAtual=Object.keys(pv12).reduce(function(s,id){return s+pv12[id]},0)/12;
+  var porTipo={};ids.forEach(function(id){var t=assetById(id).type;porTipo[t]=(porTipo[t]||0)+mercado(id)});
+  var tipos=["acao","fii","etf","tesouro"];
+  var falta={};tipos.forEach(function(t){var alvo=(cfg.alvos[t]/somaAlvo)*novoTotal;falta[t]=Math.max(0,alvo-(porTipo[t]||0))});
+  var somaFalta=tipos.reduce(function(s,t){return s+falta[t]},0);
+  var verba={};tipos.forEach(function(t){verba[t]=somaFalta>0?aporte*falta[t]/somaFalta:0});
+  var excluidos=[],sugestoes=[];
+  tipos.forEach(function(t){
+    if(!(verba[t]>0))return;
+    var cands=ids.filter(function(id){return assetById(id).type===t});
+    var classeTotal=porTipo[t]||0;
+    var pesos=[];
+    cands.forEach(function(id){
+      var a=assetById(id),m=mercado(id),partTotal=total?m/total:0,partClasse=classeTotal?m/classeTotal:0;
+      if(a.ticker==="BBAS3"){excluidos.push("BBAS3 — fora da sugestão: sua regra é não aumentar exposição a bancos.");return}
+      if(partTotal>0.25){excluidos.push(a.ticker+" — já passa de 25% da carteira; nada de reforçar concentração.");return}
+      var y=mercado(id)>0?(pv12[id]||0)/mercado(id):0;
+      var mult=REB_MULT[a.ticker]||1;
+      if(a.type==="tesouro"){mult=a.ticker.indexOf("IPCA")>=0?2:(a.ticker.indexOf("Selic")>=0?1:0.7)}
+      var peso=mult*(1+y*5)*((1-partClasse)+0.2);
+      var penal=(partClasse>0.40&&a.type!=="tesouro");
+      if(penal)peso*=0.25;
+      pesos.push({id:id,peso:peso,yield12:y,maiorClasse:penal});
+    });
+    var somaPeso=pesos.reduce(function(s,p){return s+p.peso},0);
+    pesos.forEach(function(p){
+      var valor=verba[t]*p.peso/somaPeso;if(valor<1)return;
+      var a=assetById(p.id),pr=preco(p.id);
+      var qtd=(a.type!=="tesouro"&&pr>0)?Math.floor(valor/pr):0;
+      var motivos=[];
+      motivos.push(CLASSES[t]+" está abaixo do alvo");
+      if(p.yield12>0)motivos.push("rende "+pct(p.yield12*100)+" em proventos/ano sobre o valor atual");
+      if(REB_MOTIVO[a.ticker])motivos.push(REB_MOTIVO[a.ticker]);
+      if(p.maiorClasse)motivos.push("já é o maior da classe — recebe uma fatia menor neste aporte");
+      if(a.type==="tesouro"&&a.ticker.indexOf("IPCA")>=0)motivos.push("proteção contra a inflação, base da sua estratégia");
+      sugestoes.push({ticker:a.ticker,tipo:a.type,valor:valor,qtd:qtd,preco:pr,tesouro:a.type==="tesouro",motivos:motivos,yield12:p.yield12,maiorClasse:p.maiorClasse});
+    });
+  });
+  var porClasseS={};sugestoes.forEach(function(x){(porClasseS[x.tipo]=porClasseS[x.tipo]||[]).push(x)});
+  var finais=[];
+  Object.keys(porClasseS).forEach(function(t){
+    var arr=porClasseS[t].slice().sort(function(a,b){return b.valor-a.valor});
+    var keep=arr.filter(function(x){return x.valor>=25});
+    if(!keep.length)keep=[arr[0]];
+    var somaKeep=keep.reduce(function(s,x){return s+x.valor},0);
+    var somaClasse=arr.reduce(function(s,x){return s+x.valor},0);
+    keep.forEach(function(x){x.valor=x.valor+(somaClasse-somaKeep)*x.valor/somaKeep;if(!x.tesouro&&x.preco>0)x.qtd=Math.floor(x.valor/x.preco);finais.push(x)});
+  });
+  sugestoes=finais;
+  sugestoes.sort(function(x,y){return y.valor-x.valor});
+  var rendaExtra=sugestoes.reduce(function(s,x){return s+x.valor*x.yield12},0)/12;
+  var linhas=tipos.map(function(t){var atual=total?(porTipo[t]||0)/total*100:0;var alvo=cfg.alvos[t]/somaAlvo*100;var depois=novoTotal?((porTipo[t]||0)+verba[t])/novoTotal*100:0;return "<tr><td>"+CLASSES[t]+"</td><td>"+pct(atual)+"</td><td>"+pct(alvo)+"</td><td>"+pct(depois)+"</td><td>"+fmt(verba[t])+"</td></tr>"}).join("");
+  var lista=sugestoes.map(function(x){return '<div class="item"><strong>'+esc(x.ticker)+"</strong> — aportar "+fmt(x.valor)+(x.tesouro?"":(x.qtd>0?" (≈ "+x.qtd+" cotas a "+fmt(x.preco)+")":" (menos de 1 cota a "+fmt(x.preco)+"; junte com o próximo aporte)"))+'<div class="peq">'+esc(x.motivos.join(" · "))+"</div></div>"}).join("");
+  var h='<h3>Classes: atual → alvo → depois deste aporte</h3><table><tr><th>Classe</th><th>Atual</th><th>Alvo</th><th>Depois</th><th>Vai receber</th></tr>'+linhas+"</table>";
+  h+="<h3>Sugestão de compras deste aporte ("+fmt(aporte)+")</h3>"+(lista||'<p class="peq">Nenhuma sugestão — a carteira já está nos alvos.</p>');
+  if(excluidos.length)h+='<p class="peq">Ficaram de fora: '+excluidos.map(esc).join(" ")+"</p>";
+  if(rendaExtra>=0.01)h+="<p>💰 Proventos médios hoje: <strong>"+fmt(rendaMesAtual)+"/mês</strong> (últimos 12 meses lançados). Seguindo a sugestão, a estimativa sobe para ≈ <strong>"+fmt(rendaMesAtual+rendaExtra)+"/mês</strong> quando os novos ativos pagarem um ciclo completo.</p>";
+  else h+="<p>💰 Proventos médios hoje: <strong>"+fmt(rendaMesAtual)+"/mês</strong> (últimos 12 meses lançados). Neste aporte o foco é equilibrar as classes — a renda mensal cresce quando os aportes mirarem os FIIs e as ações pagadoras.</p>";
+  h+='<p class="peq">Sugestão automática pelas suas regras (alvos acima, sem vender nada, prioridades e travas de concentração). É apoio à decisão — você confere e decide. Não é recomendação de investimento.</p>';
+  $("reb-resultado").innerHTML=h;
+}
+["reb-aporte","reb-t-acao","reb-t-fii","reb-t-etf","reb-t-tesouro"].forEach(function(id){$(id).addEventListener("change",rebSalvar)});
+$("btn-reb").addEventListener("click",analisarRebalanceamento);
+syncRebForm();
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
 </script>
 </body>
