@@ -152,6 +152,7 @@ nav button.ativa{color:#14532d;font-weight:700;border-top:3px solid #14532d}
 var LS_KEY="mdi-v1";
 var TIPOS={acao:"Ação",fii:"FII",etf:"ETF",tesouro:"Tesouro Direto"};
 var CLASSES={acao:"Ações",fii:"FIIs",etf:"ETFs",tesouro:"Tesouro Direto"};
+var CORES_CLASSE={acao:"#2563eb",fii:"#16a34a",etf:"#f59e0b",tesouro:"#7c3aed"};
 var GRUPO_COD={acao:"Grupo 03 — Participações Societárias, Código 01 (Ações)",fii:"Grupo 07 — Fundos, Código 03 (Fundos de Investimento Imobiliário)",etf:"Grupo 07 — Fundos (ETF / fundo de índice)",tesouro:"Grupo 04 — Aplicações e Investimentos, Código 02 (Títulos públicos — Tesouro Direto)"};
 var PV_TIPOS={dividendo:"Dividendo (isento)",rend_fii:"Rendimento de FII (isento)",jcp:"JCP (tributação exclusiva)",tesouro:"Juros de Tesouro (tributação exclusiva)"};
 var SEED=[["BBAS3","acao"],["BBSE3","acao"],["KLBN4","acao"],["CMIG4","acao"],["SAPR4","acao"],["TAEE11","acao"],["BTHF11","fii"],["XPML11","fii"],["TGAR11","fii"],["ALZR11","fii"],["KNRI11","fii"],["MXRF11","fii"],["KNCR11","fii"],["HGLG11","fii"],["IVVB11","etf"],["NASD11","etf"],["AUVP11","etf"],["GOLD11","etf"],["Tesouro Selic","tesouro"],["Tesouro IPCA+ 2032","tesouro"],["Tesouro Prefixado 2032","tesouro"]];
@@ -240,7 +241,9 @@ function renderCarteira(){
     Object.keys(porClasse).forEach(function(c){var pc=totalCusto?porClasse[c]/totalCusto*100:0;if(pc>50)alertas.push("⚠️ A classe "+c+" está com "+pct(pc)+" da carteira (acima de 50%).")});
     $("cart-alertas").innerHTML=alertas.map(function(a){return '<div class="alerta">'+esc(a)+"</div>"}).join("");
     function linha(nome,valor){var pc=totalCusto?valor/totalCusto*100:0;return "<tr><td>"+esc(nome)+'</td><td style="min-width:90px"><div class="barra"><i style="width:'+Math.min(100,pc)+'%"></i></div></td><td>'+pct(pc)+"</td><td>"+fmt(valor)+"</td></tr>"}
-    var h="<h3>Por classe</h3><table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo</h3><table>"+ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){return linha(assetById(id).ticker,pos[id].cost)}).join("")+"</table>";
+    var nomeClasse={"Ações":"acao","FIIs":"fii","ETFs":"etf","Tesouro Direto":"tesouro"};
+    var partesPizza=Object.keys(porClasse).map(function(c){return {rotulo:c,valor:porClasse[c],cor:CORES_CLASSE[nomeClasse[c]]||"#888"}});
+    var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira")+"<table>"+Object.keys(porClasse).map(function(c){return linha(c,porClasse[c])}).join("")+"</table><h3>Por ativo</h3><table>"+ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){return linha(assetById(id).ticker,pos[id].cost)}).join("")+"</table>";
     $("cart-alocacao").innerHTML=h;
     var linhas=ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}
       var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
@@ -353,6 +356,24 @@ $("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];
 var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
 save();renderAll();
 
+
+/* Pizza (donut) em SVG puro: partes [{rotulo, valor, cor}] */
+function pizzaSVG(partes,titulo){
+  var total=partes.reduce(function(s,p){return s+(Number(p.valor)||0)},0);
+  if(!(total>0))return "";
+  var R=15.9155,C=2*Math.PI*R,off=25,seg="";
+  partes.forEach(function(p){
+    var frac=(Number(p.valor)||0)/total;
+    if(frac<=0)return;
+    var len=Math.max(0,frac*C-0.7);
+    seg+='<circle r="'+R+'" cx="21" cy="21" fill="none" stroke="'+p.cor+'" stroke-width="7.5" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'"></circle>';
+    off-=frac*C;
+  });
+  var leg=partes.filter(function(p){return (Number(p.valor)||0)>0}).map(function(p){
+    return '<div class="peq" style="margin:2px 0"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+p.cor+';margin-right:6px"></span>'+esc(p.rotulo)+" — <strong>"+pct((Number(p.valor)||0)/total*100)+"</strong> · "+fmt(p.valor)+"</div>";
+  }).join("");
+  return '<div style="text-align:center"><svg viewBox="0 0 42 42" width="170" height="170" role="img" aria-label="'+esc(titulo)+'">'+seg+'<text x="21" y="20" text-anchor="middle" font-size="4.6" font-weight="bold" fill="currentColor">'+esc(titulo)+'</text><text x="21" y="25.5" text-anchor="middle" font-size="3.6" fill="currentColor">'+fmt(total)+'</text></svg><div style="text-align:left;display:inline-block">'+leg+"</div></div>";
+}
 /* ===== Rebalanceamento por aportes ===== */
 var REB_PADRAO={aporte:500,alvos:{acao:25,fii:30,etf:20,tesouro:25}};
 var REB_MULT={"BBSE3":2,"CMIG4":2,"TAEE11":0.5,"IVVB11":1.5,"NASD11":1.5,"AUVP11":1.5,"GOLD11":0.7};
@@ -426,7 +447,9 @@ function analisarRebalanceamento(){
   var rendaExtra=sugestoes.reduce(function(s,x){return s+x.valor*x.yield12},0)/12;
   var linhas=tipos.map(function(t){var atual=total?(porTipo[t]||0)/total*100:0;var alvo=cfg.alvos[t]/somaAlvo*100;var depois=novoTotal?((porTipo[t]||0)+verba[t])/novoTotal*100:0;return "<tr><td>"+CLASSES[t]+"</td><td>"+pct(atual)+"</td><td>"+pct(alvo)+"</td><td>"+pct(depois)+"</td><td>"+fmt(verba[t])+"</td></tr>"}).join("");
   var lista=sugestoes.map(function(x){return '<div class="item"><strong>'+esc(x.ticker)+"</strong> — aportar "+fmt(x.valor)+(x.tesouro?"":(x.qtd>0?" (≈ "+x.qtd+" cotas a "+fmt(x.preco)+")":" (menos de 1 cota a "+fmt(x.preco)+"; junte com o próximo aporte)"))+'<div class="peq">'+esc(x.motivos.join(" · "))+"</div></div>"}).join("");
-  var h='<h3>Classes: atual → alvo → depois deste aporte</h3><table><tr><th>Classe</th><th>Atual</th><th>Alvo</th><th>Depois</th><th>Vai receber</th></tr>'+linhas+"</table>";
+  var partesAtual=tipos.map(function(t){return {rotulo:CLASSES[t],valor:porTipo[t]||0,cor:CORES_CLASSE[t]}});
+  var partesAlvo=tipos.map(function(t){return {rotulo:CLASSES[t],valor:cfg.alvos[t],cor:CORES_CLASSE[t]}});
+  var h='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><div>'+pizzaSVG(partesAtual,"Atual")+'</div><div>'+pizzaSVG(partesAlvo,"Alvo")+'</div></div><h3>Classes: atual → alvo → depois deste aporte</h3><table><tr><th>Classe</th><th>Atual</th><th>Alvo</th><th>Depois</th><th>Vai receber</th></tr>'+linhas+"</table>";
   h+="<h3>Sugestão de compras deste aporte ("+fmt(aporte)+")</h3>"+(lista||'<p class="peq">Nenhuma sugestão — a carteira já está nos alvos.</p>');
   if(excluidos.length)h+='<p class="peq">Ficaram de fora: '+excluidos.map(esc).join(" ")+"</p>";
   if(rendaExtra>=0.01)h+="<p>💰 Proventos médios hoje: <strong>"+fmt(rendaMesAtual)+"/mês</strong> (últimos 12 meses lançados). Seguindo a sugestão, a estimativa sobe para ≈ <strong>"+fmt(rendaMesAtual+rendaExtra)+"/mês</strong> quando os novos ativos pagarem um ciclo completo.</p>";
