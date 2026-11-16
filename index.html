@@ -69,6 +69,10 @@ html[data-tema="escuro"] nav button.ativa{color:#FFD60A;font-weight:700;border-t
 html[data-tema="escuro"] .vazio,html[data-tema="escuro"] .peq{color:#a8a8a8}
 html[data-tema="escuro"] .pos{color:#4ade80}
 html[data-tema="escuro"] .neg{color:#ff7a72}
+h2[data-ac]{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+h2[data-ac] .seta{font-size:13px;opacity:.6;transition:transform .15s}
+h2[data-ac].fechado .seta{transform:rotate(-90deg)}
+.ac-fechado{display:none!important}
 </style>
 <script>try{var _t=localStorage.getItem("mdi-tema");if(!_t)_t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"escuro":"claro";document.documentElement.dataset.tema=_t}catch(e){}</script>
 </head>
@@ -83,19 +87,19 @@ html[data-tema="escuro"] .neg{color:#ff7a72}
   <div id="cot-auto-msg"></div></div>
   <div id="cart-resumo"></div>
   <div id="cart-alertas"></div>
-  <h2>Alocação</h2><div class="card" id="cart-alocacao"></div>
-  <h2>Posição por ativo</h2><div class="card" id="cart-posicao"></div>
-  <h2>Cotação manual</h2>
+  <h2 data-ac="alocacao">Alocação</h2><div class="card" id="cart-alocacao"></div>
+  <h2 data-ac="posicao">Posição por ativo</h2><div class="card" id="cart-posicao"></div>
+  <h2 data-ac="cotacao">Cotação manual</h2>
   <div class="card"><p class="peq">A cotação manual continua valendo como reserva (e é o único jeito para o Tesouro Direto): digite a cotação quando quiser atualizar. Para Tesouro Direto, digite o valor total atual do título.</p>
   <form id="form-cotacao"><label>Ativo</label><select id="cot-ativo"></select>
   <label>Data da cotação</label><input type="date" id="cot-data" required>
   <label id="cot-rotulo">Cotação unitária (R$)</label><input type="number" id="cot-valor" step="0.01" min="0" required inputmode="decimal">
   <button type="submit">Salvar cotação</button></form><div id="cot-lista"></div></div>
-  <h2>Proventos</h2><div class="card" id="cart-proventos"></div>
-  <h2>Proventos mês a mês e meta de renda</h2><div class="card" id="cart-prov-mes"></div>
-  <h2>Evolução do patrimônio</h2><div class="card" id="cart-evolucao"></div>
-  <h2>Aportes e evolução (12 meses)</h2><div class="card" id="cart-aportes"></div>
-  <h2>Rebalanceamento — onde aportar</h2>
+  <h2 data-ac="proventos">Proventos</h2><div class="card" id="cart-proventos"></div>
+  <h2 data-ac="provmes">Proventos mês a mês e meta de renda</h2><div class="card" id="cart-prov-mes"></div>
+  <h2 data-ac="evolucao">Evolução do patrimônio</h2><div class="card" id="cart-evolucao"></div>
+  <h2 data-ac="aportes">Aportes e evolução (12 meses)</h2><div class="card" id="cart-aportes"></div>
+  <h2 data-ac="rebalance">Rebalanceamento — onde aportar</h2>
   <div class="card"><p class="peq">Defina sua <strong>alocação-alvo</strong> por classe e o valor do próximo aporte. O botão analisa a carteira (a mercado, pelas cotações; sem cotação, usa o custo) e monta a sugestão de compras — <strong>sem vender nada</strong>: o ajuste é feito só com aportes novos, como é a sua estratégia.</p>
   <label>Valor do próximo aporte (R$)</label><input type="number" id="reb-aporte" step="0.01" min="0" inputmode="decimal">
   <label>Alvo — Ações (%)</label><input type="number" id="reb-t-acao" step="1" min="0" max="100" inputmode="decimal">
@@ -175,7 +179,7 @@ html[data-tema="escuro"] .neg{color:#ff7a72}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 9 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 10 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -298,7 +302,7 @@ function renderCarteira(){
     var linhas=dadosPos.map(function(d){var a=d.a,p=d.p,q=d.q,merc=d.merc,dif=d.dif,id=d.id;
       var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
       return "<tr><td>"+esc(a.ticker)+selo+"</td><td>"+num(p.qty)+"</td><td>"+fmt(p.pm)+"</td><td>"+fmt(p.cost)+"</td><td>"+pct(totalCusto?p.cost/totalCusto*100:0)+"</td><td>"+fmt(pbA[id]||0)+"</td><td>"+(merc===null?"—":fmt(merc))+"</td><td>"+(dif===null?"—":'<span class="'+(dif>=0?"pos":"neg")+'">'+fmt(dif)+(p.cost?" ("+pct(dif/p.cost*100)+")":"")+"</span>")+"</td></tr>"});
-    $("cart-posicao").innerHTML=barrasPosicao(dadosPos)+'<p class="peq">Barras pelo valor de mercado (quando há cotação) ou pelo custo; a cor é a classe do ativo e o % ao lado da barra é a fatia na carteira. A tabela traz os números exatos.</p>'+"<table><tr><th>Ativo</th><th>Qtd</th><th>PM</th><th>Custo</th><th>%</th><th>Proventos</th><th>Mercado</th><th>Dif.</th></tr>"+linhas.join("")+"</table>";
+    $("cart-posicao").innerHTML=posicaoCompacta(dadosPos,pbA);
   }
   /* cotações */
   var qids=Object.keys(state.quotes);
@@ -349,7 +353,13 @@ document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("
 $("op-modo-total").addEventListener("change",function(e){var t=e.target.checked;$("op-total").style.display=t?"block":"none";$("op-normal").style.display=t?"none":"block"});
 $("form-op").addEventListener("submit",function(e){e.preventDefault();var total=$("op-modo-total").checked;var op={id:uid(),date:$("op-data").value,assetId:$("op-ativo").value,side:$("op-lado").value,qty:total?1:(Number($("op-qtd").value)||0),price:total?(Number($("op-valor").value)||0):(Number($("op-preco").value)||0),fees:Number($("op-taxas").value)||0};if(!op.date||op.qty<=0||op.price<=0){alert("Preencha data, quantidade e preço.");return}state.operations.push(op);save();renderAll();e.target.reset();$("op-total").style.display="none";$("op-normal").style.display="block"});
 $("form-prov").addEventListener("submit",function(e){e.preventDefault();var p={id:uid(),date:$("pv-data").value,assetId:$("pv-ativo").value,type:$("pv-tipo").value,value:Number($("pv-valor").value)||0,ir:Number($("pv-ir").value)||0};if(!p.date||p.value<=0){alert("Preencha data e valor.");return}state.proceeds.push(p);save();renderAll();e.target.reset()});
-$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};registrarSnapshot();save();renderAll()});
+$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};/* Posição compacta: tocar numa linha abre/fecha os detalhes */
+$("cart-posicao").addEventListener("click",function(e){
+  var linha=(e.target&&e.target.closest)?e.target.closest("[data-pos]"):null;if(!linha)return;
+  var det=$("det-"+linha.getAttribute("data-pos"));if(det)det.style.display=(det.style.display==="none"?"block":"none");
+});
+initAcordeon();
+registrarSnapshot();save();renderAll()});
 $("aj-ativo").addEventListener("change",syncAjForm);
 $("form-ativo-edit").addEventListener("submit",function(e){e.preventDefault();var a=assetById($("aj-ativo").value);a.cnpj=$("aj-cnpj").value.trim();a.disc=$("aj-disc").value.trim();save();renderAll();alert("Ativo salvo.")});
 $("form-ativo-novo").addEventListener("submit",function(e){e.preventDefault();state.assets.push({id:uid(),ticker:$("nv-ticker").value.trim(),type:$("nv-tipo").value,cnpj:$("nv-cnpj").value.trim(),disc:""});save();renderAll();e.target.reset()});
@@ -526,6 +536,43 @@ function barrasPosicao(dados){
   return h+"</div>";
 }
 
+
+/* ===== Sanfona da Carteira e Posição compacta ===== */
+var SECOES_KEY="mdi-secoes";
+function secoesSalvas(){try{return JSON.parse(localStorage.getItem(SECOES_KEY)||"{}")}catch(e){return {}}}
+function initAcordeon(){
+  var def={alocacao:true,posicao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
+  var salvo=secoesSalvas();
+  document.querySelectorAll('#tab-carteira h2[data-ac]').forEach(function(h){
+    var k=h.getAttribute("data-ac");var corpo=h.nextElementSibling;if(!corpo)return;
+    var aberto=(k in salvo)?!!salvo[k]:!!def[k];
+    var seta=document.createElement("span");seta.className="seta";seta.textContent="▾";h.appendChild(seta);
+    function aplicar(){corpo.classList.toggle("ac-fechado",!aberto);h.classList.toggle("fechado",!aberto)}
+    aplicar();
+    h.addEventListener("click",function(){aberto=!aberto;var sv=secoesSalvas();sv[k]=aberto;try{localStorage.setItem(SECOES_KEY,JSON.stringify(sv))}catch(e){}aplicar()});
+  });
+}
+function posicaoCompacta(dados,pbA){
+  var max=0;dados.forEach(function(d){if(d.valor>max)max=d.valor});
+  function curto(t){return t.replace(/^Tesouro /,"").replace("Prefixado","Pref.")}
+  var h='<p class="peq" style="margin-top:0">Por valor de mercado (sem cotação, pelo custo), na cor da classe. <strong>Toque num ativo</strong> para ver quantidade, PM, custo e proventos.</p>';
+  dados.forEach(function(d){
+    var w=max?Math.max(1.5,d.valor/max*100):0;
+    var dif=d.dif===null?"":'<span class="'+(d.dif>=0?"pos":"neg")+'">'+(d.dif>=0?"+":"")+pct(d.difPct)+"</span>";
+    h+='<div data-pos="'+d.id+'" style="display:flex;align-items:center;gap:6px;padding:5px 0;cursor:pointer">'
+      +'<div style="width:92px;font-weight:600;font-size:11.5px;white-space:nowrap;overflow:hidden">'+esc(curto(d.ticker))+'</div>'
+      +'<div style="flex:1;background:var(--trilha);border-radius:5px;height:12px"><div style="width:'+w.toFixed(1)+'%;background:'+d.cor+';height:12px;border-radius:5px"></div></div>'
+      +'<div style="min-width:112px;text-align:right;font-size:12px">'+pct(d.pctCarteira)+" · "+fmt(d.valor)+'</div>'
+      +'<div style="min-width:50px;text-align:right;font-size:12px">'+dif+'</div>'
+      +'<div style="width:12px;font-size:11px;opacity:.55">▸</div></div>'
+      +'<div id="det-'+d.id+'" style="display:none;font-size:12.5px;padding:2px 0 8px">'
+      +"Qtd: <strong>"+num(d.p.qty)+"</strong> · PM: <strong>"+fmt(d.p.pm)+"</strong> · Custo: <strong>"+fmt(d.p.cost)+"</strong><br>"
+      +"Proventos recebidos: <strong>"+fmt(pbA[d.id]||0)+"</strong>"
+      +(d.merc!==null?" · Mercado: <strong>"+fmt(d.merc)+'</strong> · Dif.: <span class="'+(d.dif>=0?"pos":"neg")+'"><strong>'+fmt(d.dif)+" ("+pct(d.difPct)+")</strong></span>":" · Sem cotação (vale o custo)")
+      +"</div>";
+  });
+  return h;
+}
 /* ===== Evolução do patrimônio, proventos mensais, fechamento e importação CSV ===== */
 function fmtMil(v){if(Math.abs(v)>=1000)return "R$ "+(v/1000).toFixed(1).replace(".",",")+" mil";return fmt(v)}
 function mesRotulo(chave){var ms=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];var p=chave.split("-");return ms[Number(p[1])-1]+"/"+p[0].slice(2)}
