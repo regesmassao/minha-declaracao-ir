@@ -96,6 +96,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button type="submit">Salvar cotação</button></form><div id="cot-lista"></div></div>
   <h2 data-ac="proventos">Proventos</h2><div class="card" id="cart-proventos"></div>
   <h2 data-ac="provmes">Proventos mês a mês e meta de renda</h2><div class="card" id="cart-prov-mes"></div>
+  <h2 data-ac="prox">Próximos proventos</h2><div class="card" id="cart-prox"></div>
   <h2 data-ac="evolucao">Evolução do patrimônio</h2><div class="card" id="cart-evolucao"></div>
   <h2 data-ac="aportes">Aportes e evolução (12 meses)</h2><div class="card" id="cart-aportes"></div>
   <h2 data-ac="rebalance">Rebalanceamento — onde aportar</h2>
@@ -107,6 +108,12 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <label>Alvo — Tesouro Direto (%)</label><input type="number" id="reb-t-tesouro" step="1" min="0" max="100" inputmode="decimal">
   <button id="btn-reb" type="button">🎯 Analisar próximo aporte</button>
   <div id="reb-resultado"></div></div>
+  <h2 data-ac="comparar">Comparar ativos (X × Y)</h2>
+  <div class="card"><p class="peq" style="margin-top:0">Escolha dois ativos da sua carteira: o app busca a cotação atual dos dois e compara <strong>rendimento (DY)</strong>, <strong>preço teto</strong> e <strong>margem de segurança</strong> — e diz qual está valendo mais a pena para a sua estratégia de renda.</p>
+  <label>Ativo X</label><select id="cmp-a"></select>
+  <label>Ativo Y</label><select id="cmp-b"></select>
+  <button id="btn-cmp" type="button">⚖️ Comparar</button>
+  <div id="cmp-resultado"></div></div>
 </section>
 <!-- OPERAÇÕES -->
 <section class="tab" id="tab-operacoes">
@@ -178,7 +185,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 11.2 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 12 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -278,6 +285,8 @@ function syncAjForm(){var a=assetById($("aj-ativo").value);if(!a)return;$("aj-cn
 function posAtual(){return computePositions(state.operations,null)}
 function renderCarteira(){
   var pos=posAtual(),pbA=proceedsByAsset(state.proceeds);
+  var corte12=new Date();corte12.setMonth(corte12.getMonth()-12);var corte12S=corte12.toISOString().slice(0,10);
+  var pv12map=proceedsByAsset(state.proceeds.filter(function(p){return p.date>corte12S}));
   var ids=Object.keys(pos).filter(function(id){return pos[id].qty>0});
   var totalCusto=ids.reduce(function(s,id){return s+pos[id].cost},0);
   var ano=new Date().getFullYear();
@@ -290,7 +299,10 @@ function renderCarteira(){
     var alertas=[];
     ids.forEach(function(id){var pc=totalCusto?pos[id].cost/totalCusto*100:0;if(pc>25)alertas.push("⚠️ "+assetById(id).ticker+" está com "+pct(pc)+" da carteira (acima de 25%).")});
     Object.keys(porClasse).forEach(function(c){var pc=totalCusto?porClasse[c]/totalCusto*100:0;if(pc>50)alertas.push("⚠️ A classe "+c+" está com "+pct(pc)+" da carteira (acima de 50%).")});
-    $("cart-alertas").innerHTML=alertas.map(function(a){return '<div class="alerta">'+esc(a)+"</div>"}).join("");
+    var bkHTML="";
+    var diasBk=state.ultimoBackup?Math.floor((new Date()-new Date(state.ultimoBackup+"T12:00:00"))/86400000):null;
+    if(diasBk===null||diasBk>30)bkHTML='<div class="alerta" style="background:#fff7d6;border-color:#e5d98a;color:#5a4a00">💾 '+(diasBk===null?"Você ainda não exportou um backup do app. Seus dados ficam só neste aparelho — exporte em <strong>Ajustes → Exportar backup</strong>.":"Faz "+diasBk+" dias que você não exporta um backup. Exporte em <strong>Ajustes</strong> para não correr risco de perder seus dados.")+"</div>";
+    $("cart-alertas").innerHTML=bkHTML+alertas.map(function(a){return '<div class="alerta">'+esc(a)+"</div>"}).join("");
     function linha(nome,valor){var pc=totalCusto?valor/totalCusto*100:0;return "<tr><td>"+esc(nome)+'</td><td style="min-width:90px"><div class="barra"><i style="width:'+Math.min(100,pc)+'%"></i></div></td><td>'+pct(pc)+"</td><td>"+fmt(valor)+"</td></tr>"}
     var nomeClasse={"Ações":"acao","FIIs":"fii","ETFs":"etf","Tesouro Direto":"tesouro"};
     var maiorC=null,maiorV=-1;Object.keys(porClasse).forEach(function(c){if(porClasse[c]>maiorV){maiorV=porClasse[c];maiorC=nomeClasse[c]}});
@@ -301,7 +313,7 @@ function renderCarteira(){
     var dadosPos=ids.map(function(id){var a=assetById(id),p=pos[id];var q=state.quotes[id];var merc=null,dif=null;if(q){merc=a.type==="tesouro"?(Number(q.value)||0):p.qty*(Number(q.value)||0);dif=merc-p.cost}return {id:id,ticker:a.ticker,a:a,p:p,q:q,merc:merc,dif:dif,valor:(merc!==null?merc:p.cost),pctCarteira:0,difPct:(dif!==null&&p.cost)?dif/p.cost*100:0,cor:CORES_CLASSE[a.type]||"#888"}});
     var totValor=dadosPos.reduce(function(s2,d){return s2+d.valor},0);dadosPos.forEach(function(d){d.pctCarteira=totValor?d.valor/totValor*100:0});
     dadosPos.sort(function(x,y){return y.valor-x.valor});
-    var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira",true)+'<div id="aloc-ativos">'+classeAtivosHTML(dadosPos,pbA,selClasse)+"</div><h3>Mapa da carteira</h3>"+treemapSVG((function(){var cont={};return ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id);var k=a.type;cont[k]=(cont[k]||0)+1;var ops=[1,0.8,0.64,0.52];return {rotulo:a.ticker,valor:pos[id].cost,cor:CORES_CLASSE[a.type]||"#888",opacidade:ops[Math.min(3,cont[k]-1)]}})})(),360,300)+"<p class=\"peq\">Cada retângulo é um ativo, do tamanho da sua fatia na carteira; a cor é a classe (azul: ações · verde: FIIs · âmbar: ETFs · roxo: Tesouro). Toque numa fatia da pizza para ver os ativos da classe.</p>";
+    var h="<h3>Por classe</h3>"+pizzaSVG(partesPizza,"Carteira",true)+'<div id="aloc-ativos">'+classeAtivosHTML(dadosPos,pbA,selClasse,pv12map)+"</div><h3>Mapa da carteira</h3>"+treemapSVG((function(){var cont={};return ids.slice().sort(function(x,y){return pos[y].cost-pos[x].cost}).map(function(id){var a=assetById(id);var k=a.type;cont[k]=(cont[k]||0)+1;var ops=[1,0.8,0.64,0.52];return {rotulo:a.ticker,valor:pos[id].cost,cor:CORES_CLASSE[a.type]||"#888",opacidade:ops[Math.min(3,cont[k]-1)]}})})(),360,300)+"<p class=\"peq\">Cada retângulo é um ativo, do tamanho da sua fatia na carteira; a cor é a classe (azul: ações · verde: FIIs · âmbar: ETFs · roxo: Tesouro). Toque numa fatia da pizza para ver os ativos da classe.</p>";
     $("cart-alocacao").innerHTML=h;
     var linhas=dadosPos.map(function(d){var a=d.a,p=d.p,q=d.q,merc=d.merc,dif=d.dif,id=d.id;
       var selo=(q&&q.source==="brapi")?'<div class="peq">brapi'+(q.time?" · "+esc(q.time):"")+" · "+esc(q.date)+"</div>":"";
@@ -347,7 +359,7 @@ function renderDeclaracao(){
   function bloco(t,txt){return '<div class="card"><h3>'+esc(t)+'</h3><pre>'+esc(txt)+'</pre><button data-copy="'+esc(txt)+'">Copiar bloco</button></div>'}
   $("dec-blocos").innerHTML=bloco("Bens e Direitos — posição em 31/12/"+ano,bloco1)+bloco("Rendimentos Isentos",b2)+bloco("Tributação Exclusiva",b3);
 }
-function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao();syncRebForm();renderEvolucao();renderProvMes();renderFechamento()}
+function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao();syncRebForm();renderEvolucao();renderProvMes();renderFechamento();renderProx();syncComparar()}
 /* navegação */
 document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("ativa")});b.classList.add("ativa");document.querySelectorAll("section.tab").forEach(function(s){s.classList.remove("ativa")});$("tab-"+b.dataset.tab).classList.add("ativa");window.scrollTo(0,0)})});
 /* anos da declaração */
@@ -460,10 +472,11 @@ $("cart-alocacao").addEventListener("click",function(e){
   if(svg)escolherClasse(classePeloToque(svg,e));
 });
 initAcordeon();
+$("btn-cmp").addEventListener("click",compararAtivos);
 registrarSnapshot();
 syncTokenUI();
-$("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
-$("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
+$("btn-exportar").addEventListener("click",function(){state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderCarteira();var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
+$("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
 var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
 save();renderAll();
 
@@ -551,7 +564,7 @@ function barrasPosicao(dados){
 var SECOES_KEY="mdi-secoes";
 function secoesSalvas(){try{return JSON.parse(localStorage.getItem(SECOES_KEY)||"{}")}catch(e){return {}}}
 function initAcordeon(){
-  var def={alocacao:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
+  var def={alocacao:false,prox:false,comparar:false,cotacao:false,proventos:false,provmes:false,evolucao:false,aportes:false,rebalance:false};
   var salvo=secoesSalvas();
   document.querySelectorAll('#tab-carteira h2[data-ac]').forEach(function(h){
     var k=h.getAttribute("data-ac");var corpo=h.nextElementSibling;if(!corpo)return;
@@ -562,7 +575,8 @@ function initAcordeon(){
     h.addEventListener("click",function(){aberto=!aberto;var sv=secoesSalvas();sv[k]=aberto;try{localStorage.setItem(SECOES_KEY,JSON.stringify(sv))}catch(e){}aplicar()});
   });
 }
-function posicaoCompacta(dados,pbA){
+function posicaoCompacta(dados,pbA,pv12map){
+  pv12map=pv12map||{};
   var max=0;dados.forEach(function(d){if(d.valor>max)max=d.valor});
   function curto(t){return t.replace(/^Tesouro /,"").replace("Prefixado","Pref.")}
   var h='<p class="peq" style="margin-top:0">Por valor de mercado (sem cotação, pelo custo), na cor da classe. <strong>Toque num ativo</strong> para ver quantidade, PM, custo e proventos.</p>';
@@ -579,18 +593,23 @@ function posicaoCompacta(dados,pbA){
       +"Qtd: <strong>"+num(d.p.qty)+"</strong> · PM: <strong>"+fmt(d.p.pm)+"</strong> · Custo: <strong>"+fmt(d.p.cost)+"</strong><br>"
       +"Proventos recebidos: <strong>"+fmt(pbA[d.id]||0)+"</strong>"
       +(d.merc!==null?" · Mercado: <strong>"+fmt(d.merc)+'</strong> · Dif.: <span class="'+(d.dif>=0?"pos":"neg")+'"><strong>'+fmt(d.dif)+" ("+pct(d.difPct)+")</strong></span>":" · Sem cotação (vale o custo)")
+      +(function(){var pv12=pv12map[d.id]||0;if(!(pv12>0)||!(d.p.qty>0)||d.a.type==="tesouro")return "";
+        var dpa=pv12/d.p.qty,teto=dpa/0.06;
+        var t="<br>Proventos 12m: <strong>"+fmt(pv12)+"</strong> · DY s/ custo: <strong>"+pct(d.p.cost?pv12/d.p.cost*100:0)+"</strong><br>Dividendo por cota: "+fmt(dpa)+" · <strong>Preço teto (6%): "+fmt(teto)+"</strong>";
+        if(d.q&&(Number(d.q.value)||0)>0){var pu=Number(d.q.value);t+=" · Cotação: "+fmt(pu)+(pu<=teto?' <span class="pos">(abaixo do teto)</span>':' <span class="neg">(acima do teto)</span>')}
+        return t})()
       +"</div>";
   });
   return h;
 }
 
 /* Classe selecionada na pizza: undefined = automática (maior classe); null = recolhida */
-function classeAtivosHTML(dados,pbA,sel){
+function classeAtivosHTML(dados,pbA,sel,pv12map){
   var NOMES_CLASSE={acao:"Ações",fii:"FIIs",etf:"ETFs",tesouro:"Tesouro Direto"};
   if(!sel)return '<p class="peq">👆 Toque numa <strong>fatia da pizza</strong> (ou no nome da classe na legenda) para ver os ativos daquela classe aqui.</p>';
   var daClasse=dados.filter(function(d){return d.a.type===sel});
   if(!daClasse.length)return '<p class="peq">Sem ativos nessa classe.</p>';
-  return "<h3>"+NOMES_CLASSE[sel]+" — "+daClasse.length+(daClasse.length===1?" ativo":" ativos")+"</h3>"+posicaoCompacta(daClasse,pbA);
+  return "<h3>"+NOMES_CLASSE[sel]+" — "+daClasse.length+(daClasse.length===1?" ativo":" ativos")+"</h3>"+posicaoCompacta(daClasse,pbA,pv12map);
 }
 
 function classePeloToque(svg,e){
@@ -608,6 +627,102 @@ function escolherClasse(k){
   var atual=(alocClasseSel===undefined)?alocMaiorCache:alocClasseSel;
   alocClasseSel=(atual===k)?null:k;
   renderCarteira();
+}
+
+function renderProx(){
+  var el=$("cart-prox");if(!el)return;
+  var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
+  var porAtivo={};state.proceeds.forEach(function(p){if(p.date>corteS)porAtivo[p.assetId]=(porAtivo[p.assetId]||0)+(Number(p.value)||0)});
+  var ids=Object.keys(porAtivo).filter(function(id){return porAtivo[id]>0});
+  if(!ids.length){el.innerHTML='<div class="vazio">Sem proventos nos últimos 12 meses para estimar.</div>';return}
+  var total=ids.reduce(function(t,id){return t+porAtivo[id]},0)/12;
+  ids.sort(function(a,b){return porAtivo[b]-porAtivo[a]});
+  el.innerHTML='<p style="margin-top:0">Expectativa mensal (média dos últimos 12 meses): <strong>'+fmt(total)+'/mês</strong></p>'
+    +ids.map(function(id){var a=assetById(id);return '<div class="item">'+esc(a?a.ticker:"?")+' — média de <strong>'+fmt(porAtivo[id]/12)+'/mês</strong> <span class="peq">('+fmt(porAtivo[id])+' em 12 meses)</span></div>'}).join("")
+    +'<p class="peq">É uma média: os pagamentos reais variam mês a mês. Conforme você lança os proventos (ou importa o CSV da B3), a estimativa fica mais fiel.</p>';
+}
+
+/* ===== Comparador X × Y ===== */
+function syncComparar(){
+  var pos=posAtual();
+  var lista=state.assets.filter(function(a){return a.type!=="tesouro"&&pos[a.id]&&pos[a.id].qty>0});
+  [["cmp-a",0],["cmp-b",1]].forEach(function(par){
+    var sel=$(par[0]);if(!sel)return;var atual=sel.value;
+    sel.innerHTML=lista.map(function(a){return '<option value="'+a.id+'">'+esc(a.ticker)+"</option>"}).join("");
+    if(atual&&lista.some(function(a){return a.id===atual}))sel.value=atual;
+    else if(lista[par[1]])sel.value=lista[par[1]].id;
+  });
+}
+function metricasCmp(id){
+  var a=assetById(id),pos=posAtual(),p=pos[id]||{qty:0,pm:0,cost:0};
+  var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
+  var pv12=state.proceeds.filter(function(x){return x.assetId===id&&x.date>corteS}).reduce(function(t,x){return t+(Number(x.value)||0)},0);
+  var q=state.quotes[id];
+  var preco=(q&&(Number(q.value)||0)>0)?Number(q.value):null;
+  var dpa=p.qty>0?pv12/p.qty:0;
+  var teto=dpa>0?dpa/0.06:null;
+  var totalCusto=Object.keys(pos).reduce(function(t,k){return t+pos[k].cost},0);
+  return {a:a,p:p,preco:preco,pv12:pv12,dpa:dpa,teto:teto,
+    dyPreco:(preco&&dpa>0)?dpa/preco*100:null,
+    dyCusto:(p.cost>0)?pv12/p.cost*100:0,
+    margem:(teto&&preco)?(teto/preco-1)*100:null,
+    fatia:totalCusto?p.cost/totalCusto*100:0,
+    qdate:q?(q.date+(q.time?" "+q.time:"")):null};
+}
+function compararAtivos(){
+  var res=$("cmp-resultado");
+  var idA=$("cmp-a").value,idB=$("cmp-b").value;
+  if(!idA||!idB||idA===idB){res.innerHTML='<div class="alerta">Escolha dois ativos diferentes.</div>';return}
+  function montar(nota){
+    var A=metricasCmp(idA),B=metricasCmp(idB);
+    function cel(v){return v===null||v===undefined?"—":v}
+    function linha(rotulo,va,vb,melhor){
+      var ma=(melhor==="a"),mb=(melhor==="b");
+      return "<tr><td>"+rotulo+'</td><td'+(ma?' style="font-weight:700"':"")+">"+cel(va)+(ma?" ◀":"")+'</td><td'+(mb?' style="font-weight:700"':"")+">"+cel(vb)+(mb?" ◀":"")+"</td></tr>";
+    }
+    function melhorNum(x,y){if(x===null||y===null||x===y)return "";return x>y?"a":"b"}
+    var pontos={a:0,b:0},porques=[];
+    if(A.dyPreco!==null&&B.dyPreco!==null){var m1=melhorNum(A.dyPreco,B.dyPreco);if(m1){pontos[m1]++;porques.push("DY maior: "+(m1==="a"?A.a.ticker:B.a.ticker)+" ("+pct(Math.max(A.dyPreco,B.dyPreco))+" contra "+pct(Math.min(A.dyPreco,B.dyPreco))+")")}}
+    if(A.margem!==null&&B.margem!==null){var m2=melhorNum(A.margem,B.margem);if(m2){pontos[m2]++;porques.push("mais folga até o preço teto: "+(m2==="a"?A.a.ticker:B.a.ticker))}}
+    if(A.teto&&A.preco){if(A.preco<=A.teto)pontos.a++;else pontos.b++}
+    if(B.teto&&B.preco){if(B.preco<=B.teto)pontos.b++;else pontos.a++}
+    var veredito;
+    if(A.pv12<=0||B.pv12<=0){
+      var sem=A.pv12<=0?A.a.ticker:B.a.ticker;
+      veredito='<p>⚠️ <strong>'+esc(sem)+"</strong> ainda não tem proventos lançados nos últimos 12 meses, então a comparação de renda fica incompleta — lance os proventos dele (ou importe o CSV da B3) para o veredito completo.</p>";
+    }else if(pontos.a===pontos.b){
+      veredito="<p>🤝 <strong>Empate técnico</strong> pelos critérios de renda — os dois estão parecidos em DY e margem. Desempate pela sua estratégia: classe abaixo do alvo no rebalanceamento, ou o que você conhece melhor.</p>";
+    }else{
+      var ganhador=pontos.a>pontos.b?A:B;
+      veredito="<p>🏆 <strong>"+esc(ganhador.a.ticker)+" está valendo mais a pena</strong> para a sua estratégia de renda.</p>"+(porques.length?"<p class='peq'>"+porques.map(esc).join(" · ")+"</p>":"");
+    }
+    res.innerHTML="<h3>"+esc(A.a.ticker)+" × "+esc(B.a.ticker)+"</h3>"
+      +(nota?'<p class="peq">'+esc(nota)+"</p>":"")
+      +"<table><tr><th></th><th>"+esc(A.a.ticker)+"</th><th>"+esc(B.a.ticker)+"</th></tr>"
+      +linha("Cotação atual",A.preco?fmt(A.preco):null,B.preco?fmt(B.preco):null,"")
+      +linha("DY na cotação (12m)",A.dyPreco!==null?pct(A.dyPreco):null,B.dyPreco!==null?pct(B.dyPreco):null,melhorNum(A.dyPreco,B.dyPreco))
+      +linha("DY sobre o seu custo",pct(A.dyCusto),pct(B.dyCusto),melhorNum(A.dyCusto,B.dyCusto))
+      +linha("Proventos por cota (12m)",A.dpa>0?fmt(A.dpa):null,B.dpa>0?fmt(B.dpa):null,melhorNum(A.dpa>0?A.dpa:null,B.dpa>0?B.dpa:null))
+      +linha("Preço teto (6%)",A.teto?fmt(A.teto):null,B.teto?fmt(B.teto):null,"")
+      +linha("Margem até o teto",A.margem!==null?pct(A.margem):null,B.margem!==null?pct(B.margem):null,melhorNum(A.margem,B.margem))
+      +linha("Seu preço médio",fmt(A.p.pm),fmt(B.p.pm),"")
+      +linha("Fatia na carteira",pct(A.fatia),pct(B.fatia),"")
+      +"</table>"+veredito
+      +'<p class="peq">Critérios: DY = proventos dos últimos 12 meses ÷ preço; preço teto = provento por cota ÷ 6% ao ano (método clássico de dividendos). Não é recomendação de investimento — é a comparação pelos seus próprios números.</p>';
+  }
+  var token=getToken();
+  var aA=assetById(idA),aB=assetById(idB);
+  if(!token||!aA||!aB){montar("Usando as cotações salvas no app.");return}
+  res.innerHTML='<p class="peq">Buscando as cotações atuais de '+esc(aA.ticker)+" e "+esc(aB.ticker)+"…</p>";
+  fetch("https://brapi.dev/api/quote/"+encodeURIComponent(aA.ticker)+","+encodeURIComponent(aB.ticker)+"?token="+encodeURIComponent(token))
+    .then(function(r){return r.json()})
+    .then(function(json){
+      var rr=parseBrapiQuotes(json,[aA.ticker,aB.ticker]);
+      var n=aplicarCotacoesBrapi(rr.aplicadas);
+      if(n>0){save();renderCarteira();syncComparar();$("cmp-a").value=idA;$("cmp-b").value=idB;montar("Cotações atualizadas agora (brapi.dev, ~30 min de atraso no plano grátis).")}
+      else montar("A brapi não retornou cotações novas; usando as salvas no app.");
+    })
+    .catch(function(){montar("Não consegui buscar agora; usando as cotações salvas no app.")});
 }
 /* ===== Evolução do patrimônio, proventos mensais, fechamento e importação CSV ===== */
 function fmtMil(v){if(Math.abs(v)>=1000)return "R$ "+(v/1000).toFixed(1).replace(".",",")+" mil";return fmt(v)}
