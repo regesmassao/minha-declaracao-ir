@@ -109,9 +109,10 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-reb" type="button">🎯 Analisar próximo aporte</button>
   <div id="reb-resultado"></div></div>
   <h2 data-ac="comparar">Comparar ativos (X × Y)</h2>
-  <div class="card"><p class="peq" style="margin-top:0">Escolha dois ativos da sua carteira: o app busca a cotação atual dos dois e compara <strong>rendimento (DY)</strong>, <strong>preço teto</strong> e <strong>margem de segurança</strong> — e diz qual está valendo mais a pena para a sua estratégia de renda.</p>
-  <label>Ativo X</label><select id="cmp-a"></select>
-  <label>Ativo Y</label><select id="cmp-b"></select>
+  <div class="card"><p class="peq" style="margin-top:0">Digite <strong>qualquer código da B3</strong> — não precisa ser da sua carteira: o app busca na brapi.dev a cotação e os <strong>proventos dos últimos 12 meses</strong> dos dois e compara <strong>DY</strong>, <strong>preço teto</strong> e <strong>margem de segurança</strong>.</p>
+  <label>Ativo X</label><input type="text" id="cmp-a" list="cmp-lista" placeholder="Ex.: BBSE3" autocomplete="off" style="text-transform:uppercase">
+  <label>Ativo Y</label><input type="text" id="cmp-b" list="cmp-lista" placeholder="Ex.: MXRF11" autocomplete="off" style="text-transform:uppercase">
+  <datalist id="cmp-lista"></datalist>
   <button id="btn-cmp" type="button">⚖️ Comparar</button>
   <div id="cmp-resultado"></div></div>
 </section>
@@ -185,7 +186,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 12 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 13 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -642,88 +643,141 @@ function renderProx(){
     +'<p class="peq">É uma média: os pagamentos reais variam mês a mês. Conforme você lança os proventos (ou importa o CSV da B3), a estimativa fica mais fiel.</p>';
 }
 
-/* ===== Comparador X × Y ===== */
+/* ===== Comparador X × Y (qualquer ativo da B3, via brapi) ===== */
 function syncComparar(){
-  var pos=posAtual();
-  var lista=state.assets.filter(function(a){return a.type!=="tesouro"&&pos[a.id]&&pos[a.id].qty>0});
-  [["cmp-a",0],["cmp-b",1]].forEach(function(par){
-    var sel=$(par[0]);if(!sel)return;var atual=sel.value;
-    sel.innerHTML=lista.map(function(a){return '<option value="'+a.id+'">'+esc(a.ticker)+"</option>"}).join("");
-    if(atual&&lista.some(function(a){return a.id===atual}))sel.value=atual;
-    else if(lista[par[1]])sel.value=lista[par[1]].id;
+  var dl=$("cmp-lista");if(!dl)return;
+  dl.innerHTML=state.assets.map(function(a){return '<option value="'+esc(a.ticker)+'">'}).join("");
+}
+function normTicker(x){return String(x||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"")}
+function parseCmpQuote(json,ticker){
+  var list=(json&&json.results)||[],r=null;
+  for(var i=0;i<list.length;i++){if(list[i]&&String(list[i].symbol).toUpperCase()===ticker){r=list[i];break}}
+  if(!r)return null;
+  var preco=Number(r.regularMarketPrice);
+  if(!isFinite(preco)||preco<=0)return null;
+  var corte=Date.now()-366*24*3600*1000;
+  var divs=(r.dividendsData&&r.dividendsData.cashDividends)||[];
+  var dpa12=0,npag=0,ult=null;
+  divs.forEach(function(dv){
+    var t=Date.parse(dv.paymentDate||dv.lastDatePrior||"");
+    var rate=Number(dv.rate);
+    if(isFinite(t)&&t>=corte&&isFinite(rate)&&rate>0){dpa12+=rate;npag++;if(!ult||t>ult.t)ult={t:t,rate:rate}}
   });
+  return {ticker:ticker,preco:preco,dpa12:dpa12,npag:npag,ult:ult,
+    varDia:(r.regularMarketChangePercent!=null?Number(r.regularMarketChangePercent):null),
+    min52:(r.fiftyTwoWeekLow!=null?Number(r.fiftyTwoWeekLow):null),
+    max52:(r.fiftyTwoWeekHigh!=null?Number(r.fiftyTwoWeekHigh):null),
+    hora:(r.regularMarketTime?new Date(r.regularMarketTime).toLocaleString("pt-BR"):"")};
 }
 function metricasCmp(id){
-  var a=assetById(id),pos=posAtual(),p=pos[id]||{qty:0,pm:0,cost:0};
+  var pos=posAtual(),p=pos[id]||{qty:0,pm:0,cost:0};
   var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
   var pv12=state.proceeds.filter(function(x){return x.assetId===id&&x.date>corteS}).reduce(function(t,x){return t+(Number(x.value)||0)},0);
   var q=state.quotes[id];
   var preco=(q&&(Number(q.value)||0)>0)?Number(q.value):null;
   var dpa=p.qty>0?pv12/p.qty:0;
-  var teto=dpa>0?dpa/0.06:null;
+  return {preco:preco,pv12:pv12,dpa:dpa,dyCusto:(p.cost>0)?pv12/p.cost*100:0};
+}
+function cmpDeCarteira(ticker){
+  var a=null;
+  for(var i=0;i<state.assets.length;i++)if(state.assets[i].ticker===ticker){a=state.assets[i];break}
+  if(!a||a.type==="tesouro")return null;
+  var pos=posAtual(),p=pos[a.id]||{qty:0,pm:0,cost:0};
+  if(!(p.qty>0))return null;
+  var m=metricasCmp(a.id);
   var totalCusto=Object.keys(pos).reduce(function(t,k){return t+pos[k].cost},0);
-  return {a:a,p:p,preco:preco,pv12:pv12,dpa:dpa,teto:teto,
-    dyPreco:(preco&&dpa>0)?dpa/preco*100:null,
-    dyCusto:(p.cost>0)?pv12/p.cost*100:0,
-    margem:(teto&&preco)?(teto/preco-1)*100:null,
-    fatia:totalCusto?p.cost/totalCusto*100:0,
-    qdate:q?(q.date+(q.time?" "+q.time:"")):null};
+  return {pm:p.pm,fatia:totalCusto?p.cost/totalCusto*100:0,dyCusto:m.dyCusto,
+    precoSalvo:m.preco,dpaSalvo:(p.qty>0?m.pv12/p.qty:0)};
+}
+function montarCmp(A,B,nota){
+  var res=$("cmp-resultado");
+  [A,B].forEach(function(M){
+    M.dy=(M.preco&&M.dpa12>0)?M.dpa12/M.preco*100:null;
+    M.teto=M.dpa12>0?M.dpa12/0.06:null;
+    M.margem=(M.teto&&M.preco)?(M.teto/M.preco-1)*100:null;
+  });
+  function cel(v){return v===null||v===undefined?"—":v}
+  function linha(rotulo,va,vb,melhor){
+    var ma=(melhor==="a"),mb=(melhor==="b");
+    return "<tr><td>"+rotulo+'</td><td'+(ma?' style="font-weight:700"':"")+">"+cel(va)+(ma?" ◀":"")+'</td><td'+(mb?' style="font-weight:700"':"")+">"+cel(vb)+(mb?" ◀":"")+"</td></tr>";
+  }
+  function melhorNum(x,y){if(x===null||y===null||x===y)return "";return x>y?"a":"b"}
+  var pontos={a:0,b:0},porques=[];
+  if(A.dy!==null&&B.dy!==null){var m1=melhorNum(A.dy,B.dy);if(m1){pontos[m1]++;porques.push("DY maior: "+(m1==="a"?A.ticker:B.ticker)+" ("+pct(Math.max(A.dy,B.dy))+" contra "+pct(Math.min(A.dy,B.dy))+")")}}
+  if(A.margem!==null&&B.margem!==null){var m2=melhorNum(A.margem,B.margem);if(m2){pontos[m2]++;porques.push("mais folga até o preço teto: "+(m2==="a"?A.ticker:B.ticker))}}
+  if(A.teto&&A.preco){if(A.preco<=A.teto)pontos.a++;else pontos.b++}
+  if(B.teto&&B.preco){if(B.preco<=B.teto)pontos.b++;else pontos.a++}
+  var veredito;
+  if(A.dpa12<=0||B.dpa12<=0){
+    var sem=A.dpa12<=0?A.ticker:B.ticker;
+    veredito='<p>⚠️ Não encontrei proventos de <strong>'+esc(sem)+"</strong> nos últimos 12 meses (ele pode não pagar, ou a brapi não tem o histórico dele) — sem DY e preço teto, não dá para cravar qual rende mais. Os demais dados estão na tabela.</p>";
+  }else if(pontos.a===pontos.b){
+    veredito="<p>🤝 <strong>Empate técnico</strong> pelos critérios de renda. Desempate pela sua estratégia: classe abaixo do alvo no rebalanceamento, ou o ativo que você conhece melhor.</p>";
+  }else{
+    var g=pontos.a>pontos.b?A:B;
+    veredito="<p>🏆 <strong>"+esc(g.ticker)+" está valendo mais a pena</strong> para a sua estratégia de renda.</p>"+(porques.length?"<p class='peq'>"+porques.map(esc).join(" · ")+"</p>":"");
+  }
+  function ultTxt(M){return M.ult?(fmt(M.ult.rate)+" em "+new Date(M.ult.t).toLocaleDateString("pt-BR")):null}
+  function faixaTxt(M){return (M.min52&&M.max52)?(fmt(M.min52)+" – "+fmt(M.max52)):null}
+  var html="<h3>"+esc(A.ticker)+" × "+esc(B.ticker)+"</h3>"
+    +(nota?'<p class="peq">'+esc(nota)+"</p>":"")
+    +"<table><tr><th></th><th>"+esc(A.ticker)+"</th><th>"+esc(B.ticker)+"</th></tr>"
+    +linha("Cotação atual",fmt(A.preco),fmt(B.preco),"")
+    +linha("Variação no dia",(A.varDia!==null&&A.varDia!==undefined)?pct(A.varDia):null,(B.varDia!==null&&B.varDia!==undefined)?pct(B.varDia):null,"")
+    +linha("DY (12 meses)",A.dy!==null?pct(A.dy):null,B.dy!==null?pct(B.dy):null,melhorNum(A.dy,B.dy))
+    +linha("Proventos por cota (12m)",A.dpa12>0?fmt(A.dpa12):null,B.dpa12>0?fmt(B.dpa12):null,melhorNum(A.dpa12>0?A.dpa12:null,B.dpa12>0?B.dpa12:null))
+    +linha("Pagamentos nos 12m",A.npag||null,B.npag||null,"")
+    +linha("Último provento",ultTxt(A),ultTxt(B),"")
+    +linha("Preço teto (6%)",A.teto?fmt(A.teto):null,B.teto?fmt(B.teto):null,"")
+    +linha("Margem até o teto",A.margem!==null?pct(A.margem):null,B.margem!==null?pct(B.margem):null,melhorNum(A.margem,B.margem))
+    +linha("Faixa 52 semanas",faixaTxt(A),faixaTxt(B),"");
+  if(A.cart||B.cart){
+    html+=linha("Seu preço médio",A.cart?fmt(A.cart.pm):"não tem",B.cart?fmt(B.cart.pm):"não tem","")
+      +linha("DY sobre o seu custo",A.cart?pct(A.cart.dyCusto):null,B.cart?pct(B.cart.dyCusto):null,melhorNum(A.cart?A.cart.dyCusto:null,B.cart?B.cart.dyCusto:null))
+      +linha("Fatia na sua carteira",A.cart?pct(A.cart.fatia):null,B.cart?pct(B.cart.fatia):null,"");
+  }
+  html+="</table>"+veredito
+    +'<p class="peq">Fonte: brapi.dev (cotação com ~30 min de atraso no plano grátis; proventos = soma dos pagamentos por cota nos últimos 12 meses). Preço teto = provento por cota ÷ 6% ao ano. Não é recomendação de investimento.</p>';
+  res.innerHTML=html;
 }
 function compararAtivos(){
   var res=$("cmp-resultado");
-  var idA=$("cmp-a").value,idB=$("cmp-b").value;
-  if(!idA||!idB||idA===idB){res.innerHTML='<div class="alerta">Escolha dois ativos diferentes.</div>';return}
-  function montar(nota){
-    var A=metricasCmp(idA),B=metricasCmp(idB);
-    function cel(v){return v===null||v===undefined?"—":v}
-    function linha(rotulo,va,vb,melhor){
-      var ma=(melhor==="a"),mb=(melhor==="b");
-      return "<tr><td>"+rotulo+'</td><td'+(ma?' style="font-weight:700"':"")+">"+cel(va)+(ma?" ◀":"")+'</td><td'+(mb?' style="font-weight:700"':"")+">"+cel(vb)+(mb?" ◀":"")+"</td></tr>";
+  var tA=normTicker($("cmp-a").value),tB=normTicker($("cmp-b").value);
+  $("cmp-a").value=tA;$("cmp-b").value=tB;
+  var re=/^[A-Z]{4,5}[0-9]{1,2}$/;
+  if(!re.test(tA)||!re.test(tB)){res.innerHTML='<div class="alerta">Digite dois códigos válidos da B3 — ex.: BBSE3, MXRF11, TAEE11.</div>';return}
+  if(tA===tB){res.innerHTML='<div class="alerta">Escolha dois ativos diferentes.</div>';return}
+  var cartA=cmpDeCarteira(tA),cartB=cmpDeCarteira(tB);
+  function viaCarteira(nota){
+    function M(t,cart){
+      return {ticker:t,preco:cart?cart.precoSalvo:null,dpa12:cart?cart.dpaSalvo:0,npag:0,ult:null,varDia:null,min52:null,max52:null,cart:cart};
     }
-    function melhorNum(x,y){if(x===null||y===null||x===y)return "";return x>y?"a":"b"}
-    var pontos={a:0,b:0},porques=[];
-    if(A.dyPreco!==null&&B.dyPreco!==null){var m1=melhorNum(A.dyPreco,B.dyPreco);if(m1){pontos[m1]++;porques.push("DY maior: "+(m1==="a"?A.a.ticker:B.a.ticker)+" ("+pct(Math.max(A.dyPreco,B.dyPreco))+" contra "+pct(Math.min(A.dyPreco,B.dyPreco))+")")}}
-    if(A.margem!==null&&B.margem!==null){var m2=melhorNum(A.margem,B.margem);if(m2){pontos[m2]++;porques.push("mais folga até o preço teto: "+(m2==="a"?A.a.ticker:B.a.ticker))}}
-    if(A.teto&&A.preco){if(A.preco<=A.teto)pontos.a++;else pontos.b++}
-    if(B.teto&&B.preco){if(B.preco<=B.teto)pontos.b++;else pontos.a++}
-    var veredito;
-    if(A.pv12<=0||B.pv12<=0){
-      var sem=A.pv12<=0?A.a.ticker:B.a.ticker;
-      veredito='<p>⚠️ <strong>'+esc(sem)+"</strong> ainda não tem proventos lançados nos últimos 12 meses, então a comparação de renda fica incompleta — lance os proventos dele (ou importe o CSV da B3) para o veredito completo.</p>";
-    }else if(pontos.a===pontos.b){
-      veredito="<p>🤝 <strong>Empate técnico</strong> pelos critérios de renda — os dois estão parecidos em DY e margem. Desempate pela sua estratégia: classe abaixo do alvo no rebalanceamento, ou o que você conhece melhor.</p>";
-    }else{
-      var ganhador=pontos.a>pontos.b?A:B;
-      veredito="<p>🏆 <strong>"+esc(ganhador.a.ticker)+" está valendo mais a pena</strong> para a sua estratégia de renda.</p>"+(porques.length?"<p class='peq'>"+porques.map(esc).join(" · ")+"</p>":"");
-    }
-    res.innerHTML="<h3>"+esc(A.a.ticker)+" × "+esc(B.a.ticker)+"</h3>"
-      +(nota?'<p class="peq">'+esc(nota)+"</p>":"")
-      +"<table><tr><th></th><th>"+esc(A.a.ticker)+"</th><th>"+esc(B.a.ticker)+"</th></tr>"
-      +linha("Cotação atual",A.preco?fmt(A.preco):null,B.preco?fmt(B.preco):null,"")
-      +linha("DY na cotação (12m)",A.dyPreco!==null?pct(A.dyPreco):null,B.dyPreco!==null?pct(B.dyPreco):null,melhorNum(A.dyPreco,B.dyPreco))
-      +linha("DY sobre o seu custo",pct(A.dyCusto),pct(B.dyCusto),melhorNum(A.dyCusto,B.dyCusto))
-      +linha("Proventos por cota (12m)",A.dpa>0?fmt(A.dpa):null,B.dpa>0?fmt(B.dpa):null,melhorNum(A.dpa>0?A.dpa:null,B.dpa>0?B.dpa:null))
-      +linha("Preço teto (6%)",A.teto?fmt(A.teto):null,B.teto?fmt(B.teto):null,"")
-      +linha("Margem até o teto",A.margem!==null?pct(A.margem):null,B.margem!==null?pct(B.margem):null,melhorNum(A.margem,B.margem))
-      +linha("Seu preço médio",fmt(A.p.pm),fmt(B.p.pm),"")
-      +linha("Fatia na carteira",pct(A.fatia),pct(B.fatia),"")
-      +"</table>"+veredito
-      +'<p class="peq">Critérios: DY = proventos dos últimos 12 meses ÷ preço; preço teto = provento por cota ÷ 6% ao ano (método clássico de dividendos). Não é recomendação de investimento — é a comparação pelos seus próprios números.</p>';
+    montarCmp(M(tA,cartA),M(tB,cartB),nota);
   }
   var token=getToken();
-  var aA=assetById(idA),aB=assetById(idB);
-  if(!token||!aA||!aB){montar("Usando as cotações salvas no app.");return}
-  res.innerHTML='<p class="peq">Buscando as cotações atuais de '+esc(aA.ticker)+" e "+esc(aB.ticker)+"…</p>";
-  fetch("https://brapi.dev/api/quote/"+encodeURIComponent(aA.ticker)+","+encodeURIComponent(aB.ticker)+"?token="+encodeURIComponent(token))
+  if(!token){
+    if(cartA&&cartB&&cartA.precoSalvo&&cartB.precoSalvo){viaCarteira("Sem token da brapi salvo — comparando só com os dados da sua carteira. Para comparar qualquer ativo da B3, salve o token em Ajustes.");return}
+    res.innerHTML='<div class="alerta">Para buscar qualquer ativo da B3 eu preciso do seu token da brapi.dev salvo em Ajustes. (Sem token, só consigo comparar ativos da sua carteira.)</div>';return;
+  }
+  res.innerHTML='<p class="peq">Buscando '+esc(tA)+" e "+esc(tB)+" na brapi.dev…</p>";
+  fetch("https://brapi.dev/api/quote/"+encodeURIComponent(tA)+","+encodeURIComponent(tB)+"?dividends=true&token="+encodeURIComponent(token))
     .then(function(r){return r.json()})
     .then(function(json){
-      var rr=parseBrapiQuotes(json,[aA.ticker,aB.ticker]);
-      var n=aplicarCotacoesBrapi(rr.aplicadas);
-      if(n>0){save();renderCarteira();syncComparar();$("cmp-a").value=idA;$("cmp-b").value=idB;montar("Cotações atualizadas agora (brapi.dev, ~30 min de atraso no plano grátis).")}
-      else montar("A brapi não retornou cotações novas; usando as salvas no app.");
+      var A=parseCmpQuote(json,tA),B=parseCmpQuote(json,tB);
+      if(!A||!B){
+        var falta=!A?tA:tB;
+        if(cartA&&cartB&&cartA.precoSalvo&&cartB.precoSalvo){viaCarteira("A brapi não retornou "+falta+"; comparei com os dados da sua carteira.");return}
+        res.innerHTML='<div class="alerta">Não encontrei <strong>'+esc(falta)+"</strong> na brapi.dev — confira se o código está certo (ex.: BBSE3, MXRF11).</div>";return;
+      }
+      A.cart=cartA;B.cart=cartB;
+      montarCmp(A,B,"Cotações e proventos buscados agora na brapi.dev"+(A.hora?" ("+A.hora+")":"")+".");
     })
-    .catch(function(){montar("Não consegui buscar agora; usando as cotações salvas no app.")});
+    .catch(function(){
+      if(cartA&&cartB&&cartA.precoSalvo&&cartB.precoSalvo){viaCarteira("A busca na brapi falhou; comparei com os dados da sua carteira.");return}
+      res.innerHTML='<div class="alerta">Não consegui buscar na brapi.dev agora. Confira a internet e tente de novo.</div>';
+    });
 }
+
 /* ===== Evolução do patrimônio, proventos mensais, fechamento e importação CSV ===== */
 function fmtMil(v){if(Math.abs(v)>=1000)return "R$ "+(v/1000).toFixed(1).replace(".",",")+" mil";return fmt(v)}
 function mesRotulo(chave){var ms=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];var p=chave.split("-");return ms[Number(p[1])-1]+"/"+p[0].slice(2)}
