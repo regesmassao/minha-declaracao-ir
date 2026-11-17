@@ -110,9 +110,8 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <div id="reb-resultado"></div></div>
   <h2 data-ac="comparar">Comparar ativos (X × Y)</h2>
   <div class="card"><p class="peq" style="margin-top:0">Digite <strong>qualquer código da B3</strong> — não precisa ser da sua carteira: o app busca na brapi.dev a cotação e os <strong>proventos dos últimos 12 meses</strong> dos dois e compara <strong>DY</strong>, <strong>preço teto</strong> e <strong>margem de segurança</strong>.</p>
-  <label>Ativo X</label><input type="text" id="cmp-a" list="cmp-lista" placeholder="Ex.: BBSE3" autocomplete="off" style="text-transform:uppercase">
-  <label>Ativo Y</label><input type="text" id="cmp-b" list="cmp-lista" placeholder="Ex.: MXRF11" autocomplete="off" style="text-transform:uppercase">
-  <datalist id="cmp-lista"></datalist>
+  <label>Ativo X</label><input type="text" id="cmp-a" placeholder="Ex.: BBSE3" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+  <label>Ativo Y</label><input type="text" id="cmp-b" placeholder="Ex.: MXRF11" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
   <button id="btn-cmp" type="button">⚖️ Comparar</button>
   <div id="cmp-resultado"></div></div>
 </section>
@@ -186,7 +185,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 13 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 13.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -644,10 +643,7 @@ function renderProx(){
 }
 
 /* ===== Comparador X × Y (qualquer ativo da B3, via brapi) ===== */
-function syncComparar(){
-  var dl=$("cmp-lista");if(!dl)return;
-  dl.innerHTML=state.assets.map(function(a){return '<option value="'+esc(a.ticker)+'">'}).join("");
-}
+function syncComparar(){}
 function normTicker(x){return String(x||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"")}
 function parseCmpQuote(json,ticker){
   var list=(json&&json.results)||[],r=null;
