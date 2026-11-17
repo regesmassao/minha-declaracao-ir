@@ -178,7 +178,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 11.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 11.2 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -356,18 +356,7 @@ document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("
 $("op-modo-total").addEventListener("change",function(e){var t=e.target.checked;$("op-total").style.display=t?"block":"none";$("op-normal").style.display=t?"none":"block"});
 $("form-op").addEventListener("submit",function(e){e.preventDefault();var total=$("op-modo-total").checked;var op={id:uid(),date:$("op-data").value,assetId:$("op-ativo").value,side:$("op-lado").value,qty:total?1:(Number($("op-qtd").value)||0),price:total?(Number($("op-valor").value)||0):(Number($("op-preco").value)||0),fees:Number($("op-taxas").value)||0};if(!op.date||op.qty<=0||op.price<=0){alert("Preencha data, quantidade e preço.");return}state.operations.push(op);save();renderAll();e.target.reset();$("op-total").style.display="none";$("op-normal").style.display="block"});
 $("form-prov").addEventListener("submit",function(e){e.preventDefault();var p={id:uid(),date:$("pv-data").value,assetId:$("pv-ativo").value,type:$("pv-tipo").value,value:Number($("pv-valor").value)||0,ir:Number($("pv-ir").value)||0};if(!p.date||p.value<=0){alert("Preencha data e valor.");return}state.proceeds.push(p);save();renderAll();e.target.reset()});
-$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};/* Pizza interativa: tocar na fatia/legenda escolhe a classe; tocar num ativo abre os detalhes */
-$("cart-alocacao").addEventListener("click",function(e){
-  if(!e.target||!e.target.closest)return;
-  var linha=e.target.closest("[data-pos]");
-  if(linha){var det=$("det-"+linha.getAttribute("data-pos"));if(det)det.style.display=(det.style.display==="none"?"block":"none");return}
-  var cl=e.target.closest("[data-classe]");
-  if(cl){escolherClasse(cl.getAttribute("data-classe"));return}
-  var svg=e.target.closest("svg[data-pizza]");
-  if(svg)escolherClasse(classePeloToque(svg,e));
-});
-initAcordeon();
-registrarSnapshot();save();renderAll()});
+$("form-cotacao").addEventListener("submit",function(e){e.preventDefault();var id=$("cot-ativo").value;state.quotes[id]={value:Number($("cot-valor").value)||0,date:$("cot-data").value,source:"manual"};registrarSnapshot();save();renderAll()});
 $("aj-ativo").addEventListener("change",syncAjForm);
 $("form-ativo-edit").addEventListener("submit",function(e){e.preventDefault();var a=assetById($("aj-ativo").value);a.cnpj=$("aj-cnpj").value.trim();a.disc=$("aj-disc").value.trim();save();renderAll();alert("Ativo salvo.")});
 $("form-ativo-novo").addEventListener("submit",function(e){e.preventDefault();state.assets.push({id:uid(),ticker:$("nv-ticker").value.trim(),type:$("nv-tipo").value,cnpj:$("nv-cnpj").value.trim(),disc:""});save();renderAll();e.target.reset()});
@@ -460,6 +449,17 @@ $("imp-previa").addEventListener("click",function(e){
   $("imp-previa").innerHTML='<div class="card" style="margin-top:10px"><strong>✓ '+n+" itens importados.</strong> Confira nas abas Operações e Proventos.</div>";
   $("imp-arquivo").value="";
 });
+/* Pizza interativa: tocar na fatia/legenda escolhe a classe; tocar num ativo abre os detalhes */
+$("cart-alocacao").addEventListener("click",function(e){
+  if(!e.target||!e.target.closest)return;
+  var linha=e.target.closest("[data-pos]");
+  if(linha){var det=$("det-"+linha.getAttribute("data-pos"));if(det)det.style.display=(det.style.display==="none"?"block":"none");return}
+  var cl=e.target.closest("[data-classe]");
+  if(cl){escolherClasse(cl.getAttribute("data-classe"));return}
+  var svg=e.target.closest("svg[data-pizza]");
+  if(svg)escolherClasse(classePeloToque(svg,e));
+});
+initAcordeon();
 registrarSnapshot();
 syncTokenUI();
 $("btn-exportar").addEventListener("click",function(){var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
