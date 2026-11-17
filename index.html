@@ -185,7 +185,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 13.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 14 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -838,15 +838,40 @@ function renderProvMes(){
   var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
   var ult12=state.proceeds.filter(function(p){return p.date>corteS}).reduce(function(t,p){return t+(Number(p.value)||0)},0);
   var media=ult12/12,prog=meta>0?Math.min(100,media/meta*100):0;
-  var barras=chaves.map(function(m){var w=max?Math.max(2,porMes[m]/max*100):0;
-    return '<div style="display:flex;align-items:center;gap:6px;margin:3px 0"><div style="width:64px;font-size:12px">'+mesRotulo(m)+'</div><div style="flex:1;background:var(--trilha);border-radius:5px;height:14px"><div style="width:'+w.toFixed(1)+'%;background:#16a34a;height:14px;border-radius:5px"></div></div><div style="min-width:86px;text-align:right;font-size:12px">'+fmt(porMes[m])+"</div></div>"}).join("");
-  el.innerHTML=barras
+  var meses=[];var hoje=new Date();
+  for(var i2=11;i2>=0;i2--){var d2=new Date(hoje.getFullYear(),hoje.getMonth()-i2,1);var k2=d2.getFullYear()+"-"+("0"+(d2.getMonth()+1)).slice(-2);meses.push({k:k2,v:porMes[k2]||0,rot:mesRotulo(k2)})}
+  var maxV=0;meses.forEach(function(m){if(m.v>maxV)maxV=m.v});
+  var W=340,BH=104,BY=20,bw=19,gap=(W-12*bw)/13;
+  var partes=['<svg viewBox="0 0 340 168" style="width:100%;height:auto;display:block" role="img" aria-label="Gráfico de barras dos proventos dos últimos 12 meses">'];
+  meses.forEach(function(m,i){
+    var x=gap+i*(bw+gap),h=maxV?Math.round(m.v/maxV*BH):0,y=BY+BH-h;
+    if(m.v>0){
+      partes.push('<rect class="prov-barra" data-rot="'+m.rot+'" data-v="'+m.v+'" x="'+x.toFixed(1)+'" y="'+y+'" width="'+bw+'" height="'+Math.max(2,h)+'" rx="3" fill="#16a34a" style="cursor:pointer"></rect>');
+      var vt=m.v>=1000?(m.v/1000).toFixed(2).replace(".",",")+"k":String(Math.round(m.v));
+      partes.push('<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-4)+'" font-size="8.5" text-anchor="middle" fill="currentColor">'+vt+"</text>");
+    }else{
+      partes.push('<rect class="prov-barra" data-rot="'+m.rot+'" data-v="0" x="'+x.toFixed(1)+'" y="'+(BY+BH-2)+'" width="'+bw+'" height="2" rx="1" fill="var(--trilha)" style="cursor:pointer"></rect>');
+    }
+    partes.push('<text x="'+(x+bw/2).toFixed(1)+'" y="'+(BY+BH+15)+'" font-size="8.5" text-anchor="middle" fill="currentColor">'+m.rot.slice(0,3)+"</text>");
+  });
+  if(media>0&&maxV>0){var ay=BY+BH-Math.round(media/maxV*BH);
+    partes.push('<line x1="0" y1="'+ay+'" x2="340" y2="'+ay+'" stroke="#FFD60A" stroke-width="1.2" stroke-dasharray="5 4"></line>');
+    partes.push('<text x="338" y="'+(ay-4)+'" font-size="8.5" text-anchor="end" fill="#FFD60A">média '+fmt(media)+"</text>");}
+  partes.push('<line x1="0" y1="'+(BY+BH)+'" x2="340" y2="'+(BY+BH)+'" stroke="currentColor" stroke-width="0.6" opacity="0.4"></line>');
+  partes.push("</svg>");
+  var grafico=partes.join("")+'<div id="prov-mes-detalhe" class="peq" style="min-height:16px">Toque numa barra para ver o valor do mês. A linha amarela é a sua média mensal.</div>';
+  el.innerHTML=grafico
     +'<h3>Meta de renda mensal</h3>'
     +'<p style="margin:4px 0">Média atual: <strong>'+fmt(media)+'/mês</strong> (últimos 12 meses)</p>'
     +'<div class="barra" style="min-width:0"><i style="width:'+prog.toFixed(1)+'%"></i></div>'
     +'<p style="margin:6px 0">'+pct(prog)+" da meta de "+fmt(meta)+(meta>media?" — faltam <strong>"+fmt(meta-media)+"/mês</strong>":" — meta batida! 🎉")+"</p>"
     +'<label>Meta mensal (R$)</label><input type="number" id="meta-valor" step="10" min="0" inputmode="decimal" value="'+meta+'">'
     +'<button type="button" class="sec" id="btn-meta">Salvar meta</button>';
+  el.querySelectorAll(".prov-barra").forEach(function(b){b.addEventListener("click",function(){
+    var det=$("prov-mes-detalhe");if(!det)return;
+    var v=Number(b.getAttribute("data-v"))||0;
+    det.innerHTML="<strong>"+b.getAttribute("data-rot")+"</strong>: "+(v>0?fmt(v)+" em proventos":"nenhum provento lançado neste mês.");
+  })});
 }
 function renderFechamento(){
   var FECH_ITENS=[
