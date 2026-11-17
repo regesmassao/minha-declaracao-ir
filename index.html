@@ -185,7 +185,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 14.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 15 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -340,7 +340,25 @@ function renderCarteira(){
 function renderOps(){
   var pos=posAtual();
   if(!state.operations.length){$("op-lista").innerHTML='<div class="vazio">Nenhuma operação lançada.</div>';return}
-  $("op-lista").innerHTML=state.operations.slice().sort(function(a,b){return a.date<b.date?1:-1}).map(function(o){var a=assetById(o.assetId);var extra="";if(o.side==="venda"&&pos[o.assetId]){extra=""}return '<div class="item">'+esc(o.date)+" · "+esc(a?a.ticker:"?")+" · "+(o.side==="compra"?"Compra":"Venda")+" · "+num(o.qty)+" × "+fmt(o.price)+(o.fees?" · taxas "+fmt(o.fees):"")+" = "+fmt((Number(o.qty)||0)*(Number(o.price)||0)+(Number(o.fees)||0))+' <button data-delop="'+o.id+'">apagar</button></div>'}).join("")+
+  var MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  var ord=state.operations.slice().sort(function(a,b){return a.date<b.date?1:-1});
+  var grupos={};
+  ord.forEach(function(o){var ano=o.date.slice(0,4),mes=o.date.slice(0,7);if(!grupos[ano])grupos[ano]={};if(!grupos[ano][mes])grupos[ano][mes]=[];grupos[ano][mes].push(o)});
+  function linhaOp(o){var a=assetById(o.assetId);return '<div class="item">'+esc(o.date)+" · "+esc(a?a.ticker:"?")+" · "+(o.side==="compra"?"Compra":"Venda")+" · "+num(o.qty)+" × "+fmt(o.price)+(o.fees?" · taxas "+fmt(o.fees):"")+" = "+fmt((Number(o.qty)||0)*(Number(o.price)||0)+(Number(o.fees)||0))+' <button data-delop="'+o.id+'">apagar</button></div>'}
+  var primeiroMes=true,html="";
+  Object.keys(grupos).sort().reverse().forEach(function(ano){
+    html+="<h3 style='margin:14px 0 4px'>"+ano+"</h3>";
+    Object.keys(grupos[ano]).sort().reverse().forEach(function(mes){
+      var ops=grupos[ano][mes];
+      var totC=0,totV=0;
+      ops.forEach(function(o){var v=(Number(o.qty)||0)*(Number(o.price)||0)+(Number(o.fees)||0);if(o.side==="venda")totV+=v;else totC+=v});
+      var nomeMes=MESES[Number(mes.slice(5,7))-1];
+      var resumo=ops.length+(ops.length===1?" operação":" operações")+(totC?" · compras "+fmt(totC):"")+(totV?" · vendas "+fmt(totV):"");
+      html+='<details'+(primeiroMes?" open":"")+' style="margin:6px 0"><summary style="cursor:pointer;font-weight:600;padding:6px 0;text-transform:capitalize">'+nomeMes+' <span class="peq" style="font-weight:400;text-transform:none">· '+resumo+"</span></summary>"+ops.map(linhaOp).join("")+"</details>";
+      primeiroMes=false;
+    });
+  });
+  $("op-lista").innerHTML=html+
   Object.keys(pos).filter(function(id){return pos[id].soldQty>0}).map(function(id){return '<p class="peq">Resultado de vendas de '+esc(assetById(id).ticker)+": <strong>"+fmt(pos[id].sellResult)+"</strong></p>"}).join("");
 }
 function renderProvs(){
