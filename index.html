@@ -180,12 +180,20 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-token-salvar" type="button">Salvar token</button>
   <button id="btn-token-remover" type="button" class="sec">Remover token</button>
   <p class="peq" id="br-token-status"></p></div>
+  <h2>☁️ Nuvem (Google Drive)</h2>
+  <div class="card"><p class="peq">O mesmo esquema do app de salário: um script na <strong>sua</strong> conta Google guarda o backup num arquivo do seu Drive (<strong>minha-declaracao-ir-nuvem.json</strong>). Cole o link do script (termina em /exec) e a chave secreta. Os dois ficam salvos <strong>só neste aparelho</strong> e nunca entram no backup exportado.</p>
+  <label>Link do script (…/exec)</label><input type="text" id="nv-link" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+  <label>Chave secreta</label><input type="password" id="nv-chave" placeholder="Chave do script" autocomplete="off">
+  <button id="btn-nv-salvar" type="button">Salvar link e chave</button>
+  <button id="btn-nv-enviar" type="button">Enviar backup pra nuvem</button>
+  <button id="btn-nv-baixar" type="button" class="sec">Baixar da nuvem e importar</button>
+  <p class="peq" id="nv-status"></p></div>
   <h2>Backup</h2>
   <div class="card"><p class="peq">Os dados ficam só neste aparelho (localStorage). Exporte o backup de tempos em tempos.</p>
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 15 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 16 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -398,7 +406,46 @@ document.addEventListener("click",function(e){var t=e.target;
 });
 /* ---- cotações automáticas (brapi.dev) ---- */
 function syncTokenUI(){var t=getToken();$("br-token").value=t;$("br-token-status").textContent=t?"Token salvo neste aparelho ✓ (ele não entra no backup exportado).":"Nenhum token salvo. Sem token, o app segue 100% manual."}
-$("btn-token-salvar").addEventListener("click",function(){var t=$("br-token").value.trim();if(!t){alert("Cole o token da brapi.dev primeiro.");return}setToken(t);syncTokenUI();alert("Token salvo neste aparelho.")});
+/* ===== Nuvem (Google Drive via Apps Script) — config fora do estado/backup ===== */
+var NUVEM_LS="mdi-nuvem";
+function nuvemCfg(){try{return JSON.parse(localStorage.getItem(NUVEM_LS)||"{}")}catch(e){return{}}}
+function nuvemSaveCfg(c){try{localStorage.setItem(NUVEM_LS,JSON.stringify(c))}catch(e){}}
+function syncNuvemUI(){var c=nuvemCfg();if($("nv-link"))$("nv-link").value=c.url||"";if($("nv-chave"))$("nv-chave").value=c.key||"";var st=[];if(c.ultimoEnvio)st.push("Último envio deste aparelho: "+c.ultimoEnvio);if(c.ultimaBaixa)st.push("Última baixa: "+c.ultimaBaixa);if($("nv-status"))$("nv-status").textContent=(c.url&&c.key)?(st.length?st.join(" · "):"Nuvem configurada neste aparelho ✓"):"Nuvem ainda não configurada neste aparelho."}
+function nuvemURL(c,action){return c.url+(c.url.indexOf("?")>=0?"&":"?")+"key="+encodeURIComponent(c.key)+"&action="+action}
+$("btn-nv-salvar").addEventListener("click",function(){var u=$("nv-link").value.trim(),k=$("nv-chave").value.trim();if(u.indexOf("/exec")<0){alert("O link precisa ser o do script, terminando em /exec.");return}if(!k){alert("Cole a chave secreta do script.");return}var c=nuvemCfg();c.url=u;c.key=k;nuvemSaveCfg(c);syncNuvemUI();alert("Nuvem salva neste aparelho.")});
+$("btn-nv-enviar").addEventListener("click",function(){
+  var c=nuvemCfg();if(!c.url||!c.key){alert("Salve o link e a chave da nuvem primeiro.");return}
+  $("nv-status").textContent="Enviando backup pra nuvem…";
+  fetch(nuvemURL(c,"write"),{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(state)})
+    .then(function(r){return r.json()})
+    .then(function(j){
+      if(!j||!j.ok)throw new Error(j&&j.error?j.error:"resposta inesperada");
+      state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderCarteira();
+      c.ultimoEnvio=new Date().toLocaleString("pt-BR");nuvemSaveCfg(c);syncNuvemUI();
+      alert("Backup enviado pra nuvem ✓ ("+c.ultimoEnvio+").");
+    })
+    .catch(function(e){syncNuvemUI();alert("Não consegui enviar: "+(e&&e.message?e.message:e)+". Confira o link, a chave e a internet.")});
+});
+$("btn-nv-baixar").addEventListener("click",function(){
+  var c=nuvemCfg();if(!c.url||!c.key){alert("Salve o link e a chave da nuvem primeiro.");return}
+  $("nv-status").textContent="Buscando backup na nuvem…";
+  fetch(nuvemURL(c,"read"))
+    .then(function(r){return r.json()})
+    .then(function(j){
+      if(!j||!j.ok)throw new Error(j&&j.error?j.error:"resposta inesperada");
+      if(!j.exists||!j.data){syncNuvemUI();alert("Ainda não há backup na nuvem. Envie um primeiro.");return}
+      var d=j.data;
+      if(!d.assets||!d.operations){syncNuvemUI();alert("O backup da nuvem está num formato inesperado — nada foi alterado.");return}
+      var quando=j.updatedAt?new Date(j.updatedAt).toLocaleString("pt-BR"):"data desconhecida";
+      if(!confirm("Baixar o backup da nuvem ("+quando+")?\n\nIsso SUBSTITUI os dados atuais deste aparelho — igual à importação de arquivo. ("+d.assets.length+" ativos, "+d.operations.length+" operações)")){syncNuvemUI();return}
+      state=d;state.ultimoBackup=new Date().toISOString().slice(0,10);save();
+      c.ultimaBaixa=new Date().toLocaleString("pt-BR");nuvemSaveCfg(c);
+      renderAll();syncNuvemUI();
+      alert("Backup da nuvem importado ✓");
+    })
+    .catch(function(e){syncNuvemUI();alert("Não consegui baixar: "+(e&&e.message?e.message:e)+". Confira o link, a chave e a internet.")});
+});
+$("btn-token-salvar").addEventListener("click",function(){var t=$("br-token").value.trim();if(!t){alert("Cole o token da brapi.dev primeiro.");return}setToken(t);syncTokenUI();syncNuvemUI();alert("Token salvo neste aparelho.")});
 $("btn-token-remover").addEventListener("click",function(){setToken("");syncTokenUI();alert("Token removido deste aparelho.")});
 function atualizarCotacoes(){
   var msg=$("cot-auto-msg"),btn=$("btn-atualizar-cot");
