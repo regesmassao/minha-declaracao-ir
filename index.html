@@ -185,7 +185,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 14 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 14.1 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -859,7 +859,9 @@ function renderProvMes(){
     partes.push('<text x="338" y="'+(ay-4)+'" font-size="8.5" text-anchor="end" fill="#FFD60A">média '+fmt(media)+"</text>");}
   partes.push('<line x1="0" y1="'+(BY+BH)+'" x2="340" y2="'+(BY+BH)+'" stroke="currentColor" stroke-width="0.6" opacity="0.4"></line>');
   partes.push("</svg>");
-  var grafico=partes.join("")+'<div id="prov-mes-detalhe" class="peq" style="min-height:16px">Toque numa barra para ver o valor do mês. A linha amarela é a sua média mensal.</div>';
+  var totalGraf=meses.reduce(function(t,m){return t+m.v},0);
+  var grafico='<p style="margin:0 0 6px"><strong>Últimos 12 meses ('+meses[0].rot+" a "+meses[11].rot+')</strong> — total recebido: <strong>'+fmt(totalGraf)+"</strong></p>"
+    +partes.join("")+'<div id="prov-mes-detalhe" class="peq" style="min-height:16px">Toque numa barra para ver o valor do mês. A linha amarela é a sua média mensal.</div>';
   el.innerHTML=grafico
     +'<h3>Meta de renda mensal</h3>'
     +'<p style="margin:4px 0">Média atual: <strong>'+fmt(media)+'/mês</strong> (últimos 12 meses)</p>'
