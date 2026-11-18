@@ -159,6 +159,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <select id="dec-ano"></select>
   <p class="peq">Posição em 31/12 calculada só com operações até essa data, comparada a 31/12 do ano anterior.</p></div>
   <div id="dec-blocos"></div>
+  <h2>IR mensal (vendas)</h2><div class="card" id="dec-irmensal"></div>
 </section>
 <!-- AJUSTES -->
 <section class="tab" id="tab-ajustes">
@@ -193,7 +194,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 16 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 17 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
@@ -212,10 +213,14 @@ var CORES_CLASSE={acao:"#2563eb",fii:"#16a34a",etf:"#f59e0b",tesouro:"#7c3aed"};
 var GRUPO_COD={acao:"Grupo 03 — Participações Societárias, Código 01 (Ações)",fii:"Grupo 07 — Fundos, Código 03 (Fundos de Investimento Imobiliário)",etf:"Grupo 07 — Fundos (ETF / fundo de índice)",tesouro:"Grupo 04 — Aplicações e Investimentos, Código 02 (Títulos públicos — Tesouro Direto)"};
 var PV_TIPOS={dividendo:"Dividendo (isento)",rend_fii:"Rendimento de FII (isento)",jcp:"JCP (tributação exclusiva)",tesouro:"Juros de Tesouro (tributação exclusiva)"};
 var SEED=[["BBAS3","acao"],["BBSE3","acao"],["KLBN4","acao"],["CMIG4","acao"],["SAPR4","acao"],["TAEE11","acao"],["BTHF11","fii"],["XPML11","fii"],["TGAR11","fii"],["ALZR11","fii"],["KNRI11","fii"],["MXRF11","fii"],["KNCR11","fii"],["HGLG11","fii"],["IVVB11","etf"],["NASD11","etf"],["AUVP11","etf"],["GOLD11","etf"],["Tesouro Selic","tesouro"],["Tesouro IPCA+ 2032","tesouro"],["Tesouro Prefixado 2032","tesouro"]];
+var HIST_PROVENTOS={"2021-01":14.77,"2021-03":64.92,"2021-04":58.07,"2021-05":327.05,"2021-07":8.64,"2021-08":52.35,"2021-10":8.64,"2021-11":0.55,"2021-12":208.01,"2022-01":8.64,"2022-02":0.63,"2022-03":110.9,"2022-04":80.92,"2022-05":263.4,"2022-06":27.61,"2022-07":10.82,"2022-08":280.19,"2022-09":1.66,"2022-10":10.82,"2022-11":93.56,"2022-12":185.67,"2023-01":158.85,"2023-02":108.2,"2023-03":151.94,"2023-04":98.95,"2023-05":241.34,"2023-06":234.92,"2023-07":178.78,"2023-08":452.56,"2023-09":165.72,"2023-10":226.63,"2023-11":471.76,"2023-12":426.03,"2024-01":428.67,"2024-02":562.51,"2024-03":326.67,"2024-04":357.26,"2024-05":634.03,"2024-06":629.47,"2024-07":401.57,"2024-08":673.2,"2024-09":394.65,"2024-10":415.12,"2024-11":671.25,"2024-12":451.52,"2025-01":541.27,"2025-02":531.05,"2025-03":388.68,"2025-04":292.0,"2025-05":230.71,"2025-06":399.41,"2025-07":272.96,"2025-08":240.4,"2025-09":245.36,"2025-10":245.36,"2025-11":245.19,"2025-12":245.38,"2026-01":264.28,"2026-02":239.08,"2026-03":243.17,"2026-04":241.58,"2026-05":241.76,"2026-06":250.38,"2026-07":256.32,"2026-08":256.31,"2026-09":298.77,"2026-10":253.49,"2026-11":183.81};
+/* Historico mensal de proventos (2021-2026, do historico completo dele): camada SO de graficos/medias/totais - nunca entra nos blocos da DIRPF */
 function uid(){return "id"+Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
-function seedState(){return {assets:SEED.map(function(s,i){return {id:"a"+(i+1),ticker:s[0],type:s[1],cnpj:"",disc:""}}),operations:[],proceeds:[],quotes:{}}}
+function seedState(){return {assets:SEED.map(function(s,i){return {id:"a"+(i+1),ticker:s[0],type:s[1],cnpj:"",disc:""}}),operations:[],proceeds:[],quotes:{},histProventos:Object.assign({},HIST_PROVENTOS)}}
 function load(){try{var r=localStorage.getItem(LS_KEY);if(r){var s=JSON.parse(r);if(s&&s.assets)return s}}catch(e){}return seedState()}
 var state=load();
+function garantirHist(){if(state&&!state.histProventos)state.histProventos=Object.assign({},HIST_PROVENTOS)}
+garantirHist();
 var alocClasseSel=undefined,alocMaiorCache=null,alocPartes=[];
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
 /* Tema (claro/escuro): chave separada do estado, não entra no backup */
@@ -240,7 +245,7 @@ function parseBrapiQuotes(json,wanted){
   (wanted||[]).forEach(function(t){
     var r=bySym[String(t).toUpperCase()];
     var price=r?Number(r.regularMarketPrice):NaN;
-    if(r&&isFinite(price)&&price>0)res.aplicadas.push({symbol:t,price:price,time:(r.regularMarketTime!=null?r.regularMarketTime:null)});
+    if(r&&isFinite(price)&&price>0)res.aplicadas.push({symbol:t,price:price,time:(r.regularMarketTime!=null?r.regularMarketTime:null),nome:(r.longName||r.shortName||"")});
     else res.faltantes.push(t);
   });
   return res;
@@ -260,7 +265,8 @@ function aplicarCotacoesBrapi(aplicadas){
     for(var i=0;i<state.assets.length;i++)if(state.assets[i].ticker===a.symbol){asset=state.assets[i];break}
     if(!asset)return;
     var st=brapiQuoteStamp(a.time);
-    state.quotes[asset.id]={value:a.price,date:st.date,time:st.hhmm,source:"brapi"};
+    var prevQ=state.quotes[asset.id]||{};
+    state.quotes[asset.id]={value:a.price,date:st.date,time:st.hhmm,source:"brapi",nome:(a.nome||prevQ.nome||"")};
     n++;
   });
   return n;
@@ -385,7 +391,7 @@ function renderDeclaracao(){
   function bloco(t,txt){return '<div class="card"><h3>'+esc(t)+'</h3><pre>'+esc(txt)+'</pre><button data-copy="'+esc(txt)+'">Copiar bloco</button></div>'}
   $("dec-blocos").innerHTML=bloco("Bens e Direitos — posição em 31/12/"+ano,bloco1)+bloco("Rendimentos Isentos",b2)+bloco("Tributação Exclusiva",b3);
 }
-function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao();syncRebForm();renderEvolucao();renderProvMes();renderFechamento();renderProx();syncComparar()}
+function renderAll(){renderSelects();renderCarteira();renderOps();renderProvs();renderDeclaracao();syncRebForm();renderEvolucao();renderProvMes();renderFechamento();renderProx();renderIRM();syncComparar()}
 /* navegação */
 document.querySelectorAll("nav button").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll("nav button").forEach(function(x){x.classList.remove("ativa")});b.classList.add("ativa");document.querySelectorAll("section.tab").forEach(function(s){s.classList.remove("ativa")});$("tab-"+b.dataset.tab).classList.add("ativa");window.scrollTo(0,0)})});
 /* anos da declaração */
@@ -438,7 +444,7 @@ $("btn-nv-baixar").addEventListener("click",function(){
       if(!d.assets||!d.operations){syncNuvemUI();alert("O backup da nuvem está num formato inesperado — nada foi alterado.");return}
       var quando=j.updatedAt?new Date(j.updatedAt).toLocaleString("pt-BR"):"data desconhecida";
       if(!confirm("Baixar o backup da nuvem ("+quando+")?\n\nIsso SUBSTITUI os dados atuais deste aparelho — igual à importação de arquivo. ("+d.assets.length+" ativos, "+d.operations.length+" operações)")){syncNuvemUI();return}
-      state=d;state.ultimoBackup=new Date().toISOString().slice(0,10);save();
+      state=d;garantirHist();state.ultimoBackup=new Date().toISOString().slice(0,10);save();
       c.ultimaBaixa=new Date().toLocaleString("pt-BR");nuvemSaveCfg(c);
       renderAll();syncNuvemUI();
       alert("Backup da nuvem importado ✓");
@@ -489,6 +495,9 @@ aplicarTema(document.documentElement.dataset.tema||temaSalvo()||"claro");
 /* Meta de renda: salvar (delegação, o card é redesenhado) */
 $("cart-prov-mes").addEventListener("click",function(e){
   if(e.target&&e.target.id==="btn-meta"){var v=Number($("meta-valor").value)||0;state.metaRenda=v;save();renderProvMes();alert("Meta salva: "+fmt(v)+"/mês.")}
+});
+$("cart-prox").addEventListener("click",function(e){
+  if(e.target&&e.target.id==="btn-anunciados")buscarAnunciados();
 });
 /* Fechamento do ano: checkboxes */
 $("dec-fechamento").addEventListener("change",function(e){
@@ -541,7 +550,7 @@ $("btn-cmp").addEventListener("click",compararAtivos);
 registrarSnapshot();
 syncTokenUI();
 $("btn-exportar").addEventListener("click",function(){state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderCarteira();var blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="minha-declaracao-ir-backup.json";a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000)});
-$("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
+$("inp-importar").addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var s=JSON.parse(r.result);if(!s.assets||!s.operations)throw new Error("formato");state=s;garantirHist();state.ultimoBackup=new Date().toISOString().slice(0,10);save();renderAll();alert("Backup importado.")}catch(err){alert("Arquivo inválido.")}};r.readAsText(f)});
 var hojeS=new Date().toISOString().slice(0,10);$("op-data").value=hojeS;$("pv-data").value=hojeS;$("cot-data").value=hojeS;
 save();renderAll();
 
@@ -655,6 +664,7 @@ function posicaoCompacta(dados,pbA,pv12map){
       +'<div style="min-width:50px;text-align:right;font-size:12px">'+dif+'</div>'
       +'<div style="width:12px;font-size:11px;opacity:.55">▸</div></div>'
       +'<div id="det-'+d.id+'" style="display:none;font-size:12.5px;padding:2px 0 8px">'
+      +(d.q&&d.q.nome?'<span class="peq">'+esc(d.q.nome)+"</span><br>":"")
       +"Qtd: <strong>"+num(d.p.qty)+"</strong> · PM: <strong>"+fmt(d.p.pm)+"</strong> · Custo: <strong>"+fmt(d.p.cost)+"</strong><br>"
       +"Proventos recebidos: <strong>"+fmt(pbA[d.id]||0)+"</strong>"
       +(d.merc!==null?" · Mercado: <strong>"+fmt(d.merc)+'</strong> · Dif.: <span class="'+(d.dif>=0?"pos":"neg")+'"><strong>'+fmt(d.dif)+" ("+pct(d.difPct)+")</strong></span>":" · Sem cotação (vale o custo)")
@@ -696,15 +706,64 @@ function escolherClasse(k){
 
 function renderProx(){
   var el=$("cart-prox");if(!el)return;
+  var serie=serieProv12();
+  var mediaSerie=serie.reduce(function(t,m){return t+m.v},0)/12;
   var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
   var porAtivo={};state.proceeds.forEach(function(p){if(p.date>corteS)porAtivo[p.assetId]=(porAtivo[p.assetId]||0)+(Number(p.value)||0)});
   var ids=Object.keys(porAtivo).filter(function(id){return porAtivo[id]>0});
-  if(!ids.length){el.innerHTML='<div class="vazio">Sem proventos nos últimos 12 meses para estimar.</div>';return}
-  var total=ids.reduce(function(t,id){return t+porAtivo[id]},0)/12;
   ids.sort(function(a,b){return porAtivo[b]-porAtivo[a]});
-  el.innerHTML='<p style="margin-top:0">Expectativa mensal (média dos últimos 12 meses): <strong>'+fmt(total)+'/mês</strong></p>'
-    +ids.map(function(id){var a=assetById(id);return '<div class="item">'+esc(a?a.ticker:"?")+' — média de <strong>'+fmt(porAtivo[id]/12)+'/mês</strong> <span class="peq">('+fmt(porAtivo[id])+' em 12 meses)</span></div>'}).join("")
-    +'<p class="peq">É uma média: os pagamentos reais variam mês a mês. Conforme você lança os proventos (ou importa o CSV da B3), a estimativa fica mais fiel.</p>';
+  var h='<p style="margin-top:0">Expectativa mensal (média dos últimos 12 meses, pelo histórico completo): <strong>'+fmt(mediaSerie)+'/mês</strong></p>';
+  if(ids.length){
+    h+='<h3>Pelos lançamentos por ativo</h3>'
+      +ids.map(function(id){var a=assetById(id);return '<div class="item">'+esc(a?a.ticker:"?")+' — média de <strong>'+fmt(porAtivo[id]/12)+'/mês</strong> <span class="peq">('+fmt(porAtivo[id])+' em 12 meses)</span></div>'}).join("")
+      +'<p class="peq">A lista por ativo usa só os proventos lançados por ativo no app; a média geral usa o histórico mensal completo (inclui posições antigas já vendidas).</p>';
+  }
+  var an=state.anunciados;
+  h+='<h3>A receber (já anunciados)</h3>';
+  if(an&&an.itens&&an.itens.length){
+    h+='<p style="margin:4px 0">Total a receber: <strong>'+fmt(an.total)+'</strong> <span class="peq">(buscado em '+esc(an.quando)+')</span></p>'
+      +an.itens.map(function(it){return '<div class="item"><strong>'+esc(it.ticker)+'</strong> — '+fmt(it.total)+' <span class="peq">('+fmt(it.rate)+'/cota × '+num(it.qty)+' · paga em '+esc(it.pagamento)+')</span></div>'}).join("");
+  }else if(an){
+    h+='<p class="peq">Nenhum provento anunciado com pagamento futuro foi encontrado na última busca ('+esc(an.quando)+'). Pode ser que nada esteja anunciado — ou que o plano gratuito da brapi não tenha retornado os dados.</p>';
+  }else{
+    h+='<p class="peq">Toque no botão para buscar, na brapi, os proventos que suas empresas e fundos já anunciaram e ainda vão pagar.</p>';
+  }
+  h+='<button type="button" class="sec" id="btn-anunciados">🔎 Buscar anunciados (brapi)</button><div id="anun-msg"></div>';
+  el.innerHTML=h;
+}
+function parseAnunciados(json,qtyMap,inicioHojeMs){
+  var out=[];var list=(json&&json.results)||[];
+  list.forEach(function(r){
+    if(!r||!r.symbol)return;var tk=String(r.symbol).toUpperCase();var q=qtyMap[tk]||0;if(!(q>0))return;
+    var divs=(r.dividendsData&&r.dividendsData.cashDividends)||[];
+    divs.forEach(function(dv){
+      var t=Date.parse(dv.paymentDate||"");var rate=Number(dv.rate);
+      if(isFinite(t)&&t>=inicioHojeMs&&isFinite(rate)&&rate>0)out.push({ticker:tk,rate:rate,qty:q,total:rate*q,pagamento:String(dv.paymentDate||"").slice(0,10)});
+    });
+  });
+  out.sort(function(a,b){return a.pagamento<b.pagamento?-1:(a.pagamento>b.pagamento?1:0)});
+  return out;
+}
+function buscarAnunciados(){
+  var msg=$("anun-msg");
+  var token=getToken();
+  if(!token){if(msg)msg.innerHTML='<div class="alerta">Cole seu token da brapi.dev na aba <strong>Ajustes</strong> para buscar os anunciados.</div>';return}
+  var pos=posAtual();
+  var alvo=state.assets.filter(function(a){return a.type!=="tesouro"&&pos[a.id]&&pos[a.id].qty>0});
+  if(!alvo.length){if(msg)msg.innerHTML='<div class="alerta">Nenhuma posição em bolsa para consultar.</div>';return}
+  var qtyMap={};alvo.forEach(function(a){qtyMap[a.ticker]=pos[a.id].qty});
+  var tickers=alvo.map(function(a){return a.ticker});
+  var btn=$("btn-anunciados");if(btn){btn.disabled=true;btn.textContent="Buscando…"}
+  fetch("https://brapi.dev/api/quote/"+tickers.map(function(t){return encodeURIComponent(t)}).join(",")+"?dividends=true&token="+encodeURIComponent(token))
+    .then(function(res){if(!res.ok)throw new Error("http "+res.status);return res.json()})
+    .then(function(json){
+      var ini=new Date();ini.setHours(0,0,0,0);
+      var itens=parseAnunciados(json,qtyMap,ini.getTime());
+      var total=itens.reduce(function(t,i){return t+i.total},0);
+      state.anunciados={quando:new Date().toLocaleDateString("pt-BR"),itens:itens,total:total};
+      save();renderProx();
+    })
+    .catch(function(e){var m2=$("anun-msg");if(m2)m2.innerHTML='<div class="alerta">Não consegui buscar agora ('+esc(e&&e.message?e.message:e)+'). Tente de novo mais tarde.</div>';var b2=$("btn-anunciados");if(b2){b2.disabled=false;b2.textContent="🔎 Buscar anunciados (brapi)"}});
 }
 
 /* ===== Comparador X × Y (qualquer ativo da B3, via brapi) ===== */
@@ -893,18 +952,34 @@ function renderEvolucao(){
     +"</svg>"+leg
     +'<p class="peq">Custo e aportes são recalculados das suas operações, mês a mês. A linha verde (mercado) usa as fotos salvas a cada atualização de cotações — por isso começa no mês em que você passou a atualizar.</p>';
 }
+function serieProv12(){
+  var formal={};state.proceeds.forEach(function(p){var m=p.date.slice(0,7);formal[m]=(formal[m]||0)+(Number(p.value)||0)});
+  var hist=state.histProventos||{};
+  var meses=[];var hoje=new Date();
+  for(var i=11;i>=0;i--){var d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);var k=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2);
+    var v=(hist[k]!=null)?hist[k]:(formal[k]||0);
+    meses.push({k:k,v:v,rot:mesRotulo(k)})}
+  return meses;
+}
+function anosProvHTML(){
+  var hist=state.histProventos||{},porAno={},histAnos={};
+  Object.keys(hist).forEach(function(k){var a=k.slice(0,4);histAnos[a]=1;porAno[a]=(porAno[a]||0)+hist[k]});
+  state.proceeds.forEach(function(p){var a=p.date.slice(0,4);if(histAnos[a])return;porAno[a]=(porAno[a]||0)+(Number(p.value)||0)});
+  var ys=Object.keys(porAno).sort();if(!ys.length)return "";
+  var anoAtual=String(new Date().getFullYear());
+  return ys.slice().reverse().map(function(a){
+    var idx=ys.indexOf(a);var ant=idx>0?ys[idx-1]:null;
+    var cresc=(ant&&porAno[ant]>0)?((porAno[a]/porAno[ant]-1)*100):null;
+    return '<div class="item"><strong>'+a+"</strong>: "+fmt(porAno[a])+(cresc!==null?' <span class="'+(cresc>=0?"pos":"neg")+'">('+(cresc>=0?"+":"")+pct(cresc)+" vs "+ant+")</span>":"")+(a===anoAtual?' <span class="peq">(ano em andamento)</span>':"")+"</div>"}).join("")
+    +'<p class="peq">Anos com histórico mensal (2021–2026) vêm do seu histórico completo de proventos; os demais anos somam os lançamentos do app.</p>';
+}
 function renderProvMes(){
   var el=$("cart-prov-mes");if(!el)return;
   var meta=(state.metaRenda==null?500:Number(state.metaRenda)||0);
-  if(!state.proceeds.length){el.innerHTML='<div class="vazio">Nenhum provento lançado ainda.</div>';return}
-  var porMes={};state.proceeds.forEach(function(p){var m=p.date.slice(0,7);porMes[m]=(porMes[m]||0)+(Number(p.value)||0)});
-  var chaves=Object.keys(porMes).sort().reverse().slice(0,14);
-  var max=0;chaves.forEach(function(m){if(porMes[m]>max)max=porMes[m]});
-  var corte=new Date();corte.setMonth(corte.getMonth()-12);var corteS=corte.toISOString().slice(0,10);
-  var ult12=state.proceeds.filter(function(p){return p.date>corteS}).reduce(function(t,p){return t+(Number(p.value)||0)},0);
+  if(!state.proceeds.length&&!(state.histProventos&&Object.keys(state.histProventos).length)){el.innerHTML='<div class="vazio">Nenhum provento lançado ainda.</div>';return}
+  var meses=serieProv12();
+  var ult12=meses.reduce(function(t,m){return t+m.v},0);
   var media=ult12/12,prog=meta>0?Math.min(100,media/meta*100):0;
-  var meses=[];var hoje=new Date();
-  for(var i2=11;i2>=0;i2--){var d2=new Date(hoje.getFullYear(),hoje.getMonth()-i2,1);var k2=d2.getFullYear()+"-"+("0"+(d2.getMonth()+1)).slice(-2);meses.push({k:k2,v:porMes[k2]||0,rot:mesRotulo(k2)})}
   var maxV=0;meses.forEach(function(m){if(m.v>maxV)maxV=m.v});
   var W=340,BH=104,BY=20,bw=19,gap=(W-12*bw)/13;
   var partes=['<svg viewBox="0 0 340 168" style="width:100%;height:auto;display:block" role="img" aria-label="Gráfico de barras dos proventos dos últimos 12 meses">'];
@@ -933,12 +1008,65 @@ function renderProvMes(){
     +'<div class="barra" style="min-width:0"><i style="width:'+prog.toFixed(1)+'%"></i></div>'
     +'<p style="margin:6px 0">'+pct(prog)+" da meta de "+fmt(meta)+(meta>media?" — faltam <strong>"+fmt(meta-media)+"/mês</strong>":" — meta batida! 🎉")+"</p>"
     +'<label>Meta mensal (R$)</label><input type="number" id="meta-valor" step="10" min="0" inputmode="decimal" value="'+meta+'">'
-    +'<button type="button" class="sec" id="btn-meta">Salvar meta</button>';
+    +'<button type="button" class="sec" id="btn-meta">Salvar meta</button>'
+    +'<h3>Totais por ano</h3>'+anosProvHTML();
   el.querySelectorAll(".prov-barra").forEach(function(b){b.addEventListener("click",function(){
     var det=$("prov-mes-detalhe");if(!det)return;
     var v=Number(b.getAttribute("data-v"))||0;
     det.innerHTML="<strong>"+b.getAttribute("data-rot")+"</strong>: "+(v>0?fmt(v)+" em proventos":"nenhum provento lançado neste mês.");
   })});
+}
+/* IR mensal: resultado das vendas por mes, isencao de R$ 20 mil em acoes, prejuizo compensavel e DARF estimado.
+   Baldes: acoes+ETF (operacoes comuns a vista, 15%) e FII (20%, sem isencao). Day trade fora (sem marcacao no app). */
+function irMensalCalc(ops,assets){
+  function tipoDe(id){for(var i=0;i<assets.length;i++)if(assets[i].id===id)return assets[i].type;return ""}
+  var ordenadas=ops.slice().sort(function(a,b){return a.date<b.date?-1:(a.date>b.date?1:0)});
+  var pos={};var meses={};var ordem=[];
+  ordenadas.forEach(function(op){
+    var tp=tipoDe(op.assetId);if(!tp)return;
+    if(!pos[op.assetId])pos[op.assetId]={qty:0,cost:0,pm:0};
+    var p=pos[op.assetId];var q=Number(op.qty)||0,pr=Number(op.price)||0,f=Number(op.fees)||0;
+    if(op.side==="compra"){p.cost+=q*pr+f;p.qty+=q;p.pm=p.qty>0?p.cost/p.qty:0}
+    else{
+      var res=q*(pr-p.pm)-f;var total=q*pr;var mk=op.date.slice(0,7);
+      if(!meses[mk]){meses[mk]={vAcao:0,rAcao:0,vEtf:0,rEtf:0,vFii:0,rFii:0};ordem.push(mk)}
+      var mm=meses[mk];
+      if(tp==="acao"){mm.vAcao+=total;mm.rAcao+=res}
+      else if(tp==="etf"){mm.vEtf+=total;mm.rEtf+=res}
+      else if(tp==="fii"){mm.vFii+=total;mm.rFii+=res}
+      p.cost-=q*p.pm;p.qty-=q;if(p.qty<1e-9){p.qty=0;p.cost=0}p.pm=p.qty>0?p.cost/p.qty:0;
+    }
+  });
+  var carryRV=0,carryFII=0,saida=[];
+  ordem.sort().forEach(function(mk){
+    var mm=meses[mk];
+    var isentoAcao=mm.vAcao>0&&mm.vAcao<=20000;
+    var ganhoAcao=isentoAcao?(mm.rAcao>0?0:mm.rAcao):mm.rAcao;
+    var baseRV=ganhoAcao+mm.rEtf-carryRV;
+    var impRV=0;
+    if(baseRV>0){impRV=baseRV*0.15;carryRV=0}else carryRV=-baseRV;
+    var baseFII=mm.rFii-carryFII;var impFII=0;
+    if(baseFII>0){impFII=baseFII*0.20;carryFII=0}else carryFII=-baseFII;
+    saida.push({mes:mk,vAcao:mm.vAcao,rAcao:mm.rAcao,vEtf:mm.vEtf,rEtf:mm.rEtf,vFii:mm.vFii,rFii:mm.rFii,
+      isentoAcao:isentoAcao,impRV:impRV,impFII:impFII,darf:impRV+impFII,carryRV:carryRV,carryFII:carryFII});
+  });
+  return saida;
+}
+function renderIRM(){
+  var el=$("dec-irmensal");if(!el)return;
+  var linhas=irMensalCalc(state.operations,state.assets);
+  if(!linhas.length){el.innerHTML='<div class="vazio">Nenhuma venda lançada ainda. Quando você vender algo, aqui aparece o resultado de cada mês, a isenção de R$ 20 mil em ações e o DARF estimado.</div>';return}
+  var MESES_L=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  el.innerHTML=linhas.slice().reverse().map(function(L){
+    var rot=MESES_L[Number(L.mes.slice(5,7))-1]+"/"+L.mes.slice(0,4);
+    var partes=[];
+    if(L.vAcao>0)partes.push("Ações: vendas "+fmt(L.vAcao)+" · resultado "+fmt(L.rAcao)+(L.isentoAcao?" (vendas até R$ 20 mil: lucro isento)":""));
+    if(L.vEtf>0)partes.push("ETFs: vendas "+fmt(L.vEtf)+" · resultado "+fmt(L.rEtf));
+    if(L.vFii>0)partes.push("FIIs: vendas "+fmt(L.vFii)+" · resultado "+fmt(L.rFii)+" (20%, sem isenção)");
+    var rod=L.darf>0?'<strong>DARF estimado: '+fmt(L.darf)+'</strong> <span class="peq">(código 6015, vence no último dia útil do mês seguinte)</span>'
+      :"Sem imposto neste mês."+((L.carryRV>0||L.carryFII>0)?' <span class="peq">Prejuízo p/ compensar: '+(L.carryRV>0?"RV "+fmt(L.carryRV):"")+(L.carryRV>0&&L.carryFII>0?" · ":"")+(L.carryFII>0?"FII "+fmt(L.carryFII):"")+"</span>":"");
+    return '<div class="item"><strong>'+rot+'</strong><br>'+partes.join("<br>")+"<br>"+rod+"</div>";
+  }).join("")+'<p class="peq">Estimativa pelas operações lançadas (preço médio na data de cada venda). Não considera day trade (20%, sem isenção) nem vendas fora do app. Confira sempre no fechamento do mês.</p>';
 }
 function renderFechamento(){
   var FECH_ITENS=[
