@@ -1,6 +1,6 @@
 // Minha Declaração de IR — service worker (página: rede primeiro; demais arquivos: cache primeiro)
-var CACHE = "mdi-pwa-v17";
-var FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+var CACHE = "mdi-pwa-v17-icon";
+var FILES = ["./", "./index.html", "./manifest.webmanifest", "./IMG_6761.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
