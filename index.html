@@ -43,6 +43,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"He
 header{background:linear-gradient(160deg,#0d2148,#091835);color:var(--paper);padding:calc(14px + env(safe-area-inset-top)) 16px 14px;position:sticky;top:0;z-index:5;box-shadow:0 8px 24px rgba(2,6,18,.35)}
 header h1{margin:0;font-size:20px;font-weight:800;letter-spacing:.3px;color:var(--cream)}
 header h1 .wm-spark{color:var(--copper);font-size:15px;margin-right:6px;vertical-align:2px}
+.ver-pill{display:inline-block;margin:8px 0 0;font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--copper);border:1px solid rgba(205,146,100,.5);background:rgba(205,146,100,.14);padding:3px 10px;border-radius:999px}
 header p{margin:4px 0 0;font-size:13px;color:rgba(247,243,234,.66)}
 .aviso{background:rgba(205,146,100,.14);border-bottom:1px solid rgba(205,146,100,.45);color:var(--ink);padding:10px 16px;font-size:12.5px;line-height:1.45}
 main{max-width:720px;margin:0 auto;padding:14px}
@@ -95,7 +96,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
 <script>try{var _t=localStorage.getItem("mdi-tema");if(!_t)_t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"escuro":"claro";document.documentElement.dataset.tema=_t}catch(e){}</script>
 </head>
 <body>
-<header><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><h1><span class="wm-spark">✦</span>Minha Declaração de IR</h1><p>Preço médio, proventos e blocos da DIRPF — dados só neste aparelho</p></div><button id="btn-tema" type="button" aria-label="Alternar modo escuro">🌙</button></div></header>
+<header><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><h1><span class="wm-spark">✦</span>Minha Declaração de IR</h1><p>Preço médio, proventos e blocos da DIRPF — dados só neste aparelho</p><p class="ver-pill">✦ versão 19</p></div><button id="btn-tema" type="button" aria-label="Alternar modo escuro">🌙</button></div></header>
 <div class="aviso">⚠️ Ferramenta de organização: ela <strong>não substitui</strong> o informe de rendimentos da corretora nem a revisão anual das regras e campos da Receita Federal. Você revisa, confirma e envia.</div>
 <main>
 <!-- CARTEIRA -->
@@ -213,7 +214,7 @@ h2[data-ac].fechado .seta{transform:rotate(-90deg)}
   <button id="btn-exportar" type="button">Exportar backup (JSON)</button>
   <label>Importar backup (JSON)</label><input type="file" id="inp-importar" accept=".json,application/json">
   </div>
-  <div class="card"><p class="peq">Minha Declaração de IR — versão 18 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
+  <div class="card"><p class="peq">Minha Declaração de IR — versão 19 (instalável). Sem sincronização com corretora/B3: as operações são lançadas por você; as cotações automáticas, quando ativadas, vêm da brapi.dev. Valores sempre em R$.</p></div>
 </section>
 </main>
 <nav>
